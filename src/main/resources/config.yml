@@ -1,0 +1,418 @@
+# EM-WM-Bridge 配置文件
+# 版本: 1.3.0
+
+# ==================== 全局设置 ====================
+settings:
+  # 调试模式开关
+  debug: true
+  # 调试等级: OFF, BASIC, DETAILED, TRACE
+  debug-level: BASIC
+
+  # AI更新间隔（tick），越小AI越灵敏但越占性能
+  ai-tick-rate: 4
+
+  # 怪物脱离战斗的最大距离
+  far-distance-threshold: 40
+
+  # 脱战搜索配置
+  search:
+    # 搜索持续时间（tick，20 tick = 1秒）
+    duration-ticks: 240
+    # 搜索半径（格）
+    radius: 10
+
+  # 近战/远程切换配置
+  melee:
+    # 近战切换距离阈值（格），小于此距离使用近战
+    distance-threshold: 3.0
+
+  # 巡逻行为配置
+  patrol:
+    # 巡逻半径范围（最小-最大，格）
+    min-radius: 8
+    max-radius: 20
+    # 到达巡逻点后的停留时间（tick）
+    stay-ticks: 60-120
+    # 每tick生成新巡逻点的概率
+    new-point-chance: 0.02
+
+  # 是否使用EliteMobs事件驱动模式
+  # true: 让EliteMobs负责目标选择和仇恨管理，桥接层只负责射击执行
+  # false: 使用插件自带的独立AI系统（默认）
+  use-elitemobs-events: false
+
+# ==================== 战术设置 ====================
+tactical:
+  # 腰射射程（超过此距离会开镜）
+  hipfire-range: 15.0
+
+  # 撤退血量阈值（血量低于此比例时开始战术撤退）
+  retreat-hp-percent: 0.3
+
+  # 换弹时是否战术撤退
+  reload-retreat: true
+
+  # 连发间隔（毫秒）
+  burst-delay-ms: 500
+
+  # 掩体扫描设置
+  cover-scan:
+    # 是否启用掩体搜索
+    enabled: true
+    # 掩体扫描最小距离
+    min-distance: 5
+    # 掩体扫描最大距离（不要超过10，防止扫描过远）
+    max-distance: 10
+
+  # 塔科夫式射击机制
+  # 站立射击 - 开火时禁止移动，必须先站稳再开枪
+  stand-and-shoot: true
+  # 枪口方向约束 - 无掩体时只能沿枪线前进/后退；掩体后允许横移探头
+  restrict-movement: true
+  # 射击间移动概率 - 打完一个连发后有概率战术走位
+  # 掩体后→横移探头换角度，无掩体→沿枪线前进/后退
+  reposition-between-bursts: 0.35
+
+# ==================== 极限事件 ====================
+# 这些事件是小概率随机触发，增加AI的人性化表现
+extreme-events:
+  # 恐慌模式 - 被打急了什么都不管疯狂扫射
+  # 值表示每次判断时的基础概率（0.02 = 2%）
+  panic-mode-chance: 0.02
+
+  # 幸运一击 - 小概率打出完美射击
+  luck-shot-chance: 0.05
+
+  # 武器故障/卡壳 - 射击时可能卡壳
+  malfunction-chance: 0.03
+
+  # 战术失误 - 走位/暴露太久时可能失误
+  tactical-mistake-chance: 0.08
+
+  # 肾上腺素 - 残血时爆发攻速
+  adrenaline-chance: 0.10
+
+  # 肾上腺素触发血量阈值
+  adrenaline-hp-threshold: 0.25
+
+# ==================== 感知系统 ====================
+# 塔科夫式双重感知：视觉曝光条 + 听觉分级
+perception:
+  # 曝光衰减速率（每 tick 丢失视线时的衰减值）
+  decay-rate: 0.15
+
+  visual:
+    # 基础曝光速率 (每tick增量)
+    base-rate: 8.0
+
+    # FOV 视野锥角度 (全角, 默认120)
+    fov-degrees: 140.0
+
+    # 姿态修正 (玩家潜行/疾跑影响被探测概率)
+    posture:
+      standing: 1.0
+      sneaking: 0.6
+      crouch: 0.5
+      swim: 1.2
+
+    # 运动修正 (玩家静止/走路/冲刺)
+    motion:
+      still: 0.5
+      walking: 0.8
+      sprinting: 2.0
+
+    # 角度修正 (目标相对AI朝向的角度)
+    angle:
+      front: 1.0   # 正前方 — 最容易看到
+      side: 0.6    # 侧面
+      back: 0.3    # 背后 — 最难看到
+
+    # 环境修正 (天气/昼夜)
+    environment:
+      day-clear: 1.0   # 晴天白天
+      night: 0.5       # 夜晚
+      rain: 0.7        # 下雨
+      thunder: 0.6     # 雷暴
+      fog: 0.4         # 雾/恶劣天气
+
+    # 光照修正 (目标所在方块光照等级)
+    light:
+      max-level: 15.0       # 满光照等级
+      min-multiplier: 0.35  # 完全黑暗时的最低倍率
+
+    # 植被方块衰减系数 (每层植被穿透后保留比例)
+    foliage-attenuation: 0.6
+
+    # 身体部位可见权重
+    body-part:
+      head: 1.0       # 头部暴露 = 100% 曝光
+      torso: 0.7      # 躯干 = 70%
+      arms: 0.4       # 手臂 = 40%
+      legs: 0.3       # 腿部 = 30%
+
+    # 发光标记加成 (手电筒/激光)
+    boost:
+      flashlight: 2.0   # 手持光源 ×2.0 曝光增速
+      laser: 1.5        # 激光指示器 ×1.5
+
+  auditory:
+    enabled: true
+    # 墙体穿透衰减系数 (每堵墙后保留比例, 0.7 = 衰减30%)
+    wall-attenuation: 0.7
+    # 主动式耳机加成 (PMC/Boss的听觉增强 ×1.4)
+    headphone-multiplier: 1.4
+    # 耳鸣听觉衰减 (爆炸后 5s 内听觉检测倍率 0.2)
+    tinnitus-multiplier: 0.2
+    # 耳鸣持续时间 (tick, 100 = 5秒)
+    tinnitus-duration-ticks: 100
+    # 同方向声音额外加成 (连续的脚步声等)
+    same-direction-bonus: 5.0
+    # 脚步冷却 (毫秒, 控制脚步事件频率)
+    footstep-cooldown-ms: 800
+
+# ==================== 小队系统 ====================
+squad:
+  enabled: true
+  # 最大小队人数
+  max-size: 5
+  # 情报共享范围 (格)
+  intel-share-range: 50.0
+
+# ==================== 性格系统 ====================
+# 8种塔科夫AI性格，每种性格影响攻击/防守/伏击/撤退权重
+# COWARD(0.1,1.0,0.5) / RECKLESS(0.9,0.1,0.15) / CAUTIOUS(0.4,0.8,0.35)
+# AMBUSH(0.2,0.9,0.3) / LOOTER(0.3,0.4,0.4) / CAPTAIN(0.6,0.5,0.3)
+# FLANKER(0.7,0.4,0.25) / SUPPRESSOR(0.5,0.5,0.3)
+personality:
+  tier-weights:
+    scav:
+      # 拾荒者: 胆小+谨慎+搜刮者为主
+      COWARD: 0.35
+      CAUTIOUS: 0.25
+      LOOTER: 0.20
+      AMBUSH: 0.10
+      RECKLESS: 0.05
+      CAPTAIN: 0.03
+      SUPPRESSOR: 0.02
+      FLANKER: 0
+    pmc:
+      # 雇佣兵: 平衡分布
+      CAUTIOUS: 0.20
+      CAPTAIN: 0.18
+      FLANKER: 0.18
+      SUPPRESSOR: 0.15
+      AMBUSH: 0.10
+      RECKLESS: 0.10
+      COWARD: 0.05
+      LOOTER: 0.04
+    boss:
+      # Boss: 激进的战地指挥官
+      CAPTAIN: 0.30
+      RECKLESS: 0.25
+      SUPPRESSOR: 0.20
+      FLANKER: 0.15
+      AMBUSH: 0.05
+      CAUTIOUS: 0.05
+      LOOTER: 0
+      COWARD: 0
+    cultist:
+      # 教徒: 埋伏特化
+      AMBUSH: 0.40
+      CAUTIOUS: 0.25
+      CAPTAIN: 0.15
+      COWARD: 0.10
+      RECKLESS: 0.05
+      SUPPRESSOR: 0.05
+      FLANKER: 0
+      LOOTER: 0
+
+# ==================== 瞄准系统 ====================
+aim:
+  # 爆头窗口 (秒) — 锁定目标后，随收敛时间推进瞄准点从身体中心向头部偏移
+  headshot-window-seconds: 15.0
+  # 散布收敛率 (0-1) — 每秒钟散布缩小的比例，越小收敛越快
+  convergence-rate: 0.85
+  # 最小散布倍率 — 完全收敛后散布不会低于此值
+  min-spread-multiplier: 0.2
+  # 视线丢失后重置时间 (秒) — 丢失目标视野多久后重置收敛
+  vision-loss-reset-seconds: 2.0
+  # 初始延迟 (秒) — 每个tier看到目标后的瞄准启动延迟
+  initial-delay:
+    scav: 1.5
+    pmc: 0.9
+    boss: 0.5
+    cultist: 1.2
+
+# ==================== Tier 差异化设置 ====================
+# scav: 拾荒者 - 胆小，精度差，怕死就跑
+# pmc: 雇佣兵 - 中等，敢打敢撤
+# boss: Boss - 莽夫，除非快死了才跑
+
+tier-settings:
+  scav:
+    fire-rate-multiplier: 1.2
+    accuracy-multiplier: 2.0
+    reaction-delay-ms: 800
+    max-range: 30.0
+    vision-range: 30.0
+    sound-range: 40.0
+    can-ads: false
+    fire-mode: BURST
+    burst-size: 3
+    reload-speed-multiplier: 1.3
+    durability-multiplier: 0.7
+    aggressiveness: 0.3
+    tactical-retreat-hp: 0.4
+
+  pmc:
+    fire-rate-multiplier: 1.0
+    accuracy-multiplier: 1.2
+    reaction-delay-ms: 300
+    max-range: 50.0
+    vision-range: 50.0
+    sound-range: 75.0
+    can-ads: true
+    fire-mode: BURST
+    burst-size: 3
+    reload-speed-multiplier: 1.0
+    durability-multiplier: 1.0
+    aggressiveness: 0.6
+    tactical-retreat-hp: 0.35
+
+  boss:
+    fire-rate-multiplier: 0.8
+    accuracy-multiplier: 0.8
+    reaction-delay-ms: 200
+    max-range: 70.0
+    vision-range: 70.0
+    sound-range: 90.0
+    can-ads: true
+    fire-mode: AUTO
+    burst-size: 5
+    reload-speed-multiplier: 0.7
+    durability-multiplier: 1.5
+    aggressiveness: 0.9
+    tactical-retreat-hp: 0.25
+
+  sniper:
+    fire-rate-multiplier: 1.5
+    accuracy-multiplier: 0.5
+    reaction-delay-ms: 500
+    max-range: 80.0
+    vision-range: 80.0
+    sound-range: 100.0
+    can-ads: true
+    fire-mode: SINGLE
+    burst-size: 1
+    reload-speed-multiplier: 1.2
+    durability-multiplier: 1.0
+    aggressiveness: 0.4
+    tactical-retreat-hp: 0.3
+
+# ==================== 武器设置 ====================
+weapons:
+  default-weapon: AK_47
+  scav-pool:
+    - AK_47
+    - Uzi
+    - R9_0
+    - 50_GS
+
+  pmc-pool:
+    - AK_47
+    - M4A1
+    - FN_FAL
+    - AUG
+    - 50_GS
+    - 357_Magnum
+
+  boss-pool:
+    - M4A1
+    - FN_FAL
+    - MG34
+    - AX_50
+    - AK_47
+
+  base-durability: 100
+
+durability:
+  enabled: true
+  decay-per-shot: 1
+  malfunction-chance-threshold: 0.2
+  accuracy-penalty-per-10-percent: 0.02
+
+# ==================== 武器掉落 ====================
+loot:
+  # 怪物死亡时掉落弹药
+  drop-ammo: true
+  # 掉落数量范围
+  ammo-amount: 10-30
+
+# ==================== 战术行为 ====================
+tactics:
+  # 每次连发子弹数 — 打完 burst-size 发后强制冷却 burst-cooldown-ms
+  burst-size: 5
+  # 连发间隔冷却 (毫秒) — 两组连发之间的强制暂停
+  burst-cooldown-ms: 1200
+  # 低血量连发扩容 — 血量 <30% 时 burst-size 的扩大倍数 (背水一战)
+  burst-size-hp-ratio-multiplier: 1.5
+
+  # --- 投掷物决策概率（每AI tick） ---
+  throwable:
+    # 目标掩体后时投破片雷概率
+    frag-on-cover-chance: 0.15
+    # 目标周围多人(≥2)扎堆时投雷概率
+    frag-on-group-chance: 0.20
+    # 高血量+近距冲前时投闪光概率
+    flash-before-rush-chance: 0.30
+    # 撤退时投烟雾掩护概率
+    smoke-on-retreat-chance: 0.12
+    # 跨越开阔地时投烟雾概率
+    smoke-on-open-area-chance: 0.08
+
+  # --- 压制射击 ---
+  suppression:
+    min-health: 0.3
+    spread-multiplier: 2.5
+
+  # --- 侧翼包抄 ---
+  flank:
+    after-ticks: 200
+    chance: 0.15
+    radius: 15.0
+
+  # --- 战术撤退 ---
+  retreat:
+    hp-threshold: 0.25
+    distance: 25.0
+
+  # --- 冲锋突进 ---
+  rush:
+    hp-threshold: 0.7
+    dist-threshold: 12.0
+
+# ==================== 投掷物参数 ====================
+throwables:
+  # --- 破片手雷 ---
+  frag:
+    fuse-seconds: 3.0
+    radius: 5.0
+    max-damage: 16.0
+    min-damage: 4.0
+  # --- 闪光弹 ---
+  flash:
+    fuse-seconds: 2.0
+    radius: 8.0
+    blindness-ticks: 80
+    slowness-ticks: 60
+    nausea-ticks: 40
+  # --- 烟雾弹 ---
+  smoke:
+    fuse-seconds: 1.0
+    radius: 6.0
+    duration-ticks: 160
+  # --- 冷却时间 (毫秒) ---
+  cooldowns:
+    frag-ms: 15000
+    flash-ms: 20000
+    smoke-ms: 25000

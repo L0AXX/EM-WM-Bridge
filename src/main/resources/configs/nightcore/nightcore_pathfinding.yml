@@ -1,0 +1,301 @@
+# ==================== NightCore 寻路优化配置 ====================
+# 配置路径: plugins/NightCore/config.yml
+# 此配置优化复杂地形寻路、AI活跃度限流、差异化AI模板
+
+# ==================== 高级寻路参数 ====================
+# 复杂建筑、地铁、多层废墟内原版寻路优化
+
+advanced-pathfinding:
+  # 寻路算法配置
+  algorithm:
+    # 使用A*优化算法
+    type: "ASTAR_OPTIMIZED"
+    # 寻路最大节点数
+    max-nodes: 5000
+    # 寻路超时时间（ms）
+    timeout-ms: 100
+    # 寻路失败后回退策略
+    fallback-strategy: "DIRECT_PATH"
+  
+  # 多层建筑寻路
+  multi-level:
+    # 开启楼层间寻路
+    enabled: true
+    # 楼梯识别
+    stair-detection:
+      # 楼梯方块类型
+      stair-blocks:
+        - "STAIRS"
+        - "SLAB"
+        - "LADDER"
+      # 楼梯优先级权重
+      stair-priority: 1.5
+    # 楼层跳跃检测
+    floor-jump:
+      # 最大跳跃高度
+      max-jump-height: 4
+      # 最大跌落高度
+      max-drop-height: 8
+      # 跌落伤害阈值（超过此高度不计入路径）
+      drop-damage-threshold: 5
+  
+  # 地铁/隧道寻路
+  tunnel-navigation:
+    # 开启隧道寻路优化
+    enabled: true
+    # 隧道宽度检测
+    tunnel-width-detection: 3
+    # 隧道方向偏好（沿轨道方向优先）
+    track-direction-priority: 2.0
+    # 站点识别
+    station-recognition:
+      # 站点标记方块
+      station-blocks:
+        - "IRON_BLOCK"
+        - "QUARTZ_BLOCK"
+      # 站点作为关键节点
+      as-key-nodes: true
+  
+  # 废墟/复杂地形寻路
+  ruins-navigation:
+    # 开启废墟寻路优化
+    enabled: true
+    # 废墟路径破碎处理
+    broken-path-handling:
+      # 路径断裂最大允许距离
+      max-break-distance: 10
+      # 断裂后绕行策略
+      break-strategy: "FIND_ALTERNATIVE"
+    # 障碍物动态识别
+    obstacle-detection:
+      # 动态障碍物类型
+      dynamic-obstacles:
+        - "FENCE"
+        - "IRON_BARS"
+        - "DOOR"
+        - "TRAPDOOR"
+      # 动态障碍物处理策略
+      obstacle-strategy: "INTERACT_OR_BYPASS"
+  
+  # 绕柱子寻路
+  pillar-navigation:
+    # 开启柱子绕行
+    enabled: true
+    # 柱子识别半径
+    pillar-radius: 2
+    # 绕柱优先级
+    pillar-bypass-priority: 1.0
+    # 绕柱方向（顺时针/逆时针）
+    bypass-direction: "OPTIMAL"
+  
+  # 上下楼层追击
+  floor-tracking:
+    # 开启楼层追踪
+    enabled: true
+    # 目标楼层变化检测
+    floor-change-detection:
+      # 楼层变化阈值（Y坐标差）
+      floor-change-threshold: 3
+      # 楼层变化响应延迟（tick）
+      response-delay: 20
+    # 跨楼层追击策略
+    cross-floor-strategy:
+      # 优先使用楼梯
+      prefer-stairs: true
+      # 允许跳跃追击
+      allow-jump-chase: true
+      # 允许跌落追击
+      allow-drop-chase: true
+
+# ==================== AI活跃度限流规则 ====================
+# 防止大量精英怪同时刷新导致TPS崩盘、AI逻辑卡顿
+
+ai-throttling:
+  # TPS保护阈值
+  tps-protection:
+    # TPS监控间隔（tick）
+    monitor-interval: 100
+    # TPS警告阈值
+    warning-threshold: 18
+    # TPS限流阈值
+    throttle-threshold: 15
+    # TPS暂停阈值
+    pause-threshold: 12
+  
+  # AI数量限制
+  ai-count-limit:
+    # 最大活跃AI数量
+    max-active-ai: 50
+    # 超出后新AI生成策略
+    overflow-strategy: "QUEUE"
+    # AI队列最大长度
+    queue-max-length: 20
+    # 队列等待时间（tick）
+    queue-wait-time: 300
+  
+  # AI优先级调度
+  priority-scheduling:
+    # 优先级等级定义
+    priority-levels:
+      # 最高优先级（Boss、小队队长）
+      CRITICAL:
+        min-tps: 0
+        max-ai-count: 5
+        tick-interval: 4
+      # 高优先级（战斗中的AI）
+      HIGH:
+        min-tps: 12
+        max-ai-count: 15
+        tick-interval: 8
+      # 中优先级（搜索状态的AI）
+      NORMAL:
+        min-tps: 15
+        max-ai-count: 20
+        tick-interval: 12
+      # 低优先级（巡逻状态的AI）
+      LOW:
+        min-tps: 18
+        max-ai-count: 30
+        tick-interval: 20
+      # 最低优先级（空闲状态的AI）
+      IDLE:
+        min-tps: 20
+        max-ai-count: 50
+        tick-interval: 40
+    
+    # 优先级动态调整
+    dynamic-priority:
+      # 调整间隔（tick）
+      adjustment-interval: 60
+      # 调整条件
+      adjustment-conditions:
+        - "COMBAT_START"    # 进入战斗提升优先级
+        - "TARGET_LOST"     # 失去目标降低优先级
+        - "PLAYER_NEARBY"   # 玩家靠近提升优先级
+        - "HP_LOW"          # 血量低提升优先级
+  
+  # AI逻辑降级
+  logic-degradation:
+    # TPS<15时启用降级
+    degrade-tps-threshold: 15
+    # 降级时保留的核心逻辑
+    core-logic:
+      - "TARGET_TRACKING"
+      - "SHOOTING"
+      - "PATHFINDING_BASIC"
+    # 降级时禁用的非核心逻辑
+    disabled-logic:
+      - "COVER_SEEKING"
+      - "TACTICAL_MOVEMENT"
+      - "THROWABLE_AI"
+      - "SQUAD_COORDINATION"
+      - "ANIMATION_SYNC"
+
+# ==================== AI差异化模板 ====================
+# 突击兵、狙击手、重装兵、侦察兵四类模板
+
+ai-templates:
+  # 突击兵模板
+  assault-unit:
+    # 移动速度
+    move-speed: 1.2
+    # 攻击频率（shots/second）
+    fire-rate: 6.0
+    # 警戒范围
+    alert-range: 30
+    # 攻击距离偏好
+    preferred-range: "10-25"
+    # 战术倾向
+    tactical-tendency:
+      rush: 0.7          # 冲锋倾向
+      cover: 0.3         # 掩体倾向
+      suppress: 0.5      # 压制倾向
+      flank: 0.4         # 侧翼倾向
+    # 武器类型偏好
+    weapon-preference:
+      - "ASSAULT_RIFLE"
+      - "SMG"
+      - "SHOTGUN"
+    # 特殊能力
+    special-abilities:
+      - "QUICK_RELOAD"
+      - "CHARGE_SHOOT"
+  
+  # 狙击手模板
+  sniper-unit:
+    move-speed: 0.8
+    fire-rate: 0.8
+    alert-range: 60
+    preferred-range: "40-60"
+    tactical-tendency:
+      rush: 0.1
+      cover: 0.9
+      suppress: 0.2
+      flank: 0.3
+    weapon-preference:
+      - "SNIPER_RIFLE"
+      - "DMR"
+    special-abilities:
+      - "LONG_RANGE_ACCURACY"
+      - "COVER_PEEK"
+      - "AMBUSH_SHOOT"
+  
+  # 重装兵模板
+  heavy-unit:
+    move-speed: 0.6
+    fire-rate: 8.0
+    alert-range: 20
+    preferred-range: "5-20"
+    tactical-tendency:
+      rush: 0.8
+      cover: 0.2
+      suppress: 0.7
+      flank: 0.1
+    weapon-preference:
+      - "LMG"
+      - "SHOTGUN"
+    special-abilities:
+      - "SUPPRESS_FIRE"
+      - "IGNORE_COVER"
+      - "HEAVY_ARMOR"
+  
+  # 侦察兵模板
+  scout-unit:
+    move-speed: 1.5
+    fire-rate: 4.0
+    alert-range: 40
+    preferred-range: "20-35"
+    tactical-tendency:
+      rush: 0.3
+      cover: 0.5
+      suppress: 0.2
+      flank: 0.8
+    weapon-preference:
+      - "SMG"
+      - "PDW"
+    special-abilities:
+      - "QUICK_FLANK"
+      - "CALL_REINFORCEMENTS"
+      - "SQUAD_COORDINATION"
+
+# ==================== 寻路缓存优化 ====================
+pathfinding-cache:
+  # 开启路径缓存
+  enabled: true
+  # 缓存最大容量
+  max-cache-size: 1000
+  # 缓存有效时间（tick）
+  cache-validity: 200
+  # 缓存清理间隔
+  cleanup-interval: 100
+  
+  # 预计算路径
+  precompute:
+    # 开启区域预计算
+    enabled: true
+    # 预计算区域半径
+    precompute-radius: 30
+    # 预计算关键节点数量
+    key-node-count: 50
+    # 预计算更新间隔
+    update-interval: 600

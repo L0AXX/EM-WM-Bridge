@@ -1,0 +1,224 @@
+# ==================== MechanicsCore 全局行为规则配置 ====================
+# 配置路径: plugins/MechanicsCore/config.yml
+# 此配置关闭原版AI冲突，开启实体高级行为钩子
+
+# ==================== 原版AI冲突关闭 ====================
+vanilla-ai:
+  # 关闭原版生物AI寻路（防止与WM射击AI冲突）
+  disable-pathfinding:
+    # 对EliteMobs怪物禁用原版寻路
+    elitemobs: true
+    # 对持枪实体禁用原版寻路
+    armed-entities: true
+    # 禁用的实体类型列表
+    entity-types:
+      - ZOMBIE
+      - SKELETON
+      - ILLUSIONER
+      - VINDICATOR
+      - PIGLIN_BRUTE
+  
+  # 关闭原版近战攻击（只通过WM枪械攻击）
+  disable-melee:
+    # 对持枪实体禁用近战
+    armed-entities: true
+    # 近战距离阈值（小于此距离才允许近战）
+    melee-threshold: 2.0
+  
+  # 关闭原版目标切换（防止AI反复切换目标导致脱战）
+  disable-target-switch:
+    # 锁定目标后禁止切换（除非目标死亡/离开范围）
+    lock-target: true
+    # 目标锁定时长（tick）
+    lock-duration: 300
+    # 允许切换的条件
+    switch-conditions:
+      - "TARGET_DEAD"
+      - "TARGET_OUT_OF_RANGE"
+      - "NEW_TARGET_HIGHER_AGGRO"
+
+# ==================== 实体高级行为钩子 ====================
+entity-hooks:
+  # 射击行为钩子
+  shooting:
+    # 开启射击调度器
+    enabled: true
+    # 射击调度器tick间隔
+    tick-interval: 4
+    # 射击队列最大长度
+    queue-max-length: 100
+    # 批量射击处理
+    batch-processing:
+      enabled: true
+      batch-size: 10
+      batch-delay: 2
+  
+  # 移动行为钩子
+  movement:
+    # 开启战术移动调度器
+    enabled: true
+    # 移动tick间隔
+    tick-interval: 8
+    # 战术移动类型
+    tactical-moves:
+      - "COVER_MOVE"      # 寻找掩体
+      - "FLANK_MOVE"      # 侧翼包抄
+      - "RETREAT_MOVE"    # 战术撤退
+      - "RUSH_MOVE"       # 冲锋
+      - "PEEK_MOVE"       # 探头射击
+  
+  # 动画行为钩子
+  animation:
+    # 开启动画同步调度器
+    enabled: true
+    # 动画同步间隔（tick）
+    sync-interval: 2
+    # 动画类型
+    animation-types:
+      - "AIM"             # 举枪瞄准
+      - "SHOOT"           # 射击
+      - "RELOAD"          # 换弹
+      - "THROW"           # 投掷
+      - "COVER"           # 进入掩体
+      - "PRONE"           # 匍匐
+
+# ==================== 怪物动画同步规则 ====================
+animation-sync:
+  # 举枪动画规则
+  aim:
+    # 触发条件：目标在射程内
+    trigger-condition: "TARGET_IN_RANGE"
+    # 触发距离范围
+    trigger-range: "3-50"
+    # 动画持续时间（tick）
+    duration: 10
+    # 动画插值（平滑过渡）
+    interpolation: true
+    # 动画优先级
+    priority: HIGH
+  
+  # 射击动画规则
+  shoot:
+    # 触发条件：射击执行时
+    trigger-condition: "ON_SHOOT"
+    # 动画持续时间
+    duration: 2
+    # 后坐力动画幅度
+    recoil-amplitude: 0.5
+    # 动画优先级
+    priority: HIGHEST
+  
+  # 换弹动画规则
+  reload:
+    # 触发条件：弹药耗尽
+    trigger-condition: "AMMO_EMPTY"
+    # 动画持续时间（与换弹时长匹配）
+    duration: 60
+    # 动画类型
+    animation-type: "ITEM_SWAP"
+    # 动画优先级
+    priority: NORMAL
+  
+  # 投掷动画规则
+  throw:
+    # 触发条件：投掷物触发时
+    trigger-condition: "ON_THROW"
+    # 动画持续时间
+    duration: 15
+    # 投掷动作类型
+    throw-type: "ITEM_THROW"
+    # 动画优先级
+    priority: HIGH
+
+# ==================== 持枪错位修复 ====================
+weapon-positioning:
+  # 武器手持位置校正
+  hand-position:
+    # 主手武器偏移
+    main-hand:
+      x: 0.0
+      y: 0.1
+      z: 0.3
+    # 副手物品偏移（弹匣/投掷物）
+    off-hand:
+      x: -0.2
+      y: 0.0
+      z: 0.1
+  
+  # 瞄准姿态校正
+  aim-posture:
+    # 瞄准时头部偏移
+    head-offset:
+      x: 0.0
+      y: 0.05
+      z: 0.0
+    # 瞄准时身体旋转限制
+    body-rotation-limit: 45.0
+  
+  # 射击姿态校正
+  shoot-posture:
+    # 射击时身体后仰
+    body-recoil:
+      angle: 5.0
+      duration: 2
+    # 射击时手臂震动
+    arm-shake:
+      amplitude: 0.1
+      frequency: 10
+
+# ==================== 穿墙射击防止 ====================
+wall-shooting:
+  # 关闭穿墙射击
+  disable-wall-shoot: true
+  
+  # 射线碰撞检测
+  ray-collision:
+    # 开启碰撞检测
+    enabled: true
+    # 碰撞检测精度
+    precision: HIGH
+    # 碰撞检测间隔（格）
+    check-interval: 0.5
+    # 碰撞方块类型白名单（可穿透）
+    penetrable-blocks:
+      - "GLASS"
+      - "GLASS_PANE"
+      - "IRON_BARS"
+      - "COBWEB"
+      - "GRASS"
+      - "TALL_GRASS"
+      - "VINE"
+      - "LEAVES"
+  
+  # 射击阻挡处理
+  shoot-blocking:
+    # 阻挡时是否取消射击
+    cancel-on-block: true
+    # 阻挡时是否寻找新角度
+    find-new-angle: true
+    # 新角度搜索范围（度）
+    angle-search-range: 30.0
+
+# ==================== 实体状态同步 ====================
+entity-state-sync:
+  # 状态同步间隔（tick）
+  sync-interval: 4
+  
+  # 同步的状态类型
+  sync-states:
+    - "COMBAT_STATE"      # 战斗状态
+    - "ALERT_STAGE"       # 警戒阶段
+    - "TARGET_LOCK"       # 目标锁定
+    - "WEAPON_STATE"      # 武器状态（弹药/换弹）
+    - "COVER_STATE"       # 掩体状态
+    - "MOVEMENT_STATE"    # 移动状态
+  
+  # 状态广播范围
+  broadcast-range: 64
+  
+  # 状态持久化
+  persistence:
+    # 状态保存时长（tick）
+    save-duration: 300
+    # 死亡后清理状态
+    clear-on-death: true

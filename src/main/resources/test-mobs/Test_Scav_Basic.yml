@@ -1,0 +1,43 @@
+InternalName: Test_Scav_Basic
+DisplayName: '&7基础游荡SCAV'
+EntityType: SKELETON
+Health: 80
+Damage: 4
+MovementSpeed: 0.22
+KnockbackResistance: 0.2
+
+VisionRange: 30
+LoseTargetRange: 45
+VisionAngle: 90
+VerticalVisionRange: 8
+MustHaveLineOfSight: true
+RememberTargetDuration: 5
+SearchDuration: 6
+ScanTickInterval: 8
+ForgetTargetOnObstruction: true
+
+SoundDetection:
+  Enable: true
+  MaxSoundRange: 40
+  GunshotCoefficient: 1.5
+  SoundRequireLineOfSight: true
+
+Behaviors:
+  - RANGED_ATTACK
+  - TARGET_SEARCH
+TargetConditions:
+  - VISION_DETECTION
+  - SOUND_DETECTION
+  - HURT_BY_TARGET
+
+ChaseRange: 50
+CanChaseOverObstacles: false
+
+Metadata:
+  - Key: elitemobs
+    Value: true
+  - Key: tarkov_tier
+    Value: scav
+
+TarkovTier: scav
+TarkovPersonality: COWARD

@@ -1,0 +1,68 @@
+[versions]
+# Core Minecraft dependencies
+authlib = "6.0.54"
+brigadier = "1.3.10"
+paper = "1.21.11-R0.1-SNAPSHOT"
+packetEvents = "2.12.1"
+
+# External "hooks" or plugins that we might interact with
+geyser = "2.7.0-SNAPSHOT"
+mythicMobs = "5.12.0"
+placeholderApi = "2.11.6"
+vault = "1.7.1"
+vivecraft = "3.0.0"
+worldedit = "7.3.14"
+worldguard = "7.0.16"
+
+# Shaded dependencies
+annotations = "26.1.0"
+bstats = "3.1.0"
+commandApi = "11.2.0"
+fastUtil = "8.5.15"
+foliaScheduler = "0.8.0"
+gson = "2.13.1"
+hikariCp = "5.1.0"
+jsonSimple = "1.1.1"
+kotlin = "2.3.21"
+xSeries = "13.6.0"
+
+# Testing dependencies
+junit = "6.1.0"
+
+
+[libraries]
+# Core Minecraft dependencies
+authlib        = { module = "com.mojang:authlib", version.ref = "authlib"}
+brigadier      = { module = "com.mojang:brigadier", version.ref = "brigadier" }
+paper          = { module = "io.papermc.paper:paper-api", version.ref = "paper" }
+packetEvents   = { module = "com.github.retrooper:packetevents-spigot", version.ref = "packetEvents" }
+
+# External "hooks" or plugins that we might interact with
+geyser         = { module = "org.geysermc.geyser:api", version.ref = "geyser" }
+mythicMobs     = { module = "io.lumine:Mythic-Dist", version.ref = "mythicMobs" }
+placeholderApi = { module = "me.clip:placeholderapi", version.ref = "placeholderApi" }
+vault          = { module = "com.github.MilkBowl:VaultAPI", version.ref = "vault" }
+vivecraft      = { module = "com.cjcrafter:vivecraft", version.ref = "vivecraft" }
+worldedit      = { module = "com.sk89q.worldedit:worldedit-bukkit", version.ref = "worldedit" }
+worldguard     = { module = "com.sk89q.worldguard:worldguard-bukkit", version.ref = "worldguard" }
+
+# Shaded dependencies
+annotations              = { module = "org.jetbrains:annotations", version.ref = "annotations" }
+bstats                   = { module = "org.bstats:bstats-bukkit", version.ref = "bstats" }
+commandApi               = { module = "dev.jorel:commandapi-paper-core", version.ref = "commandApi" }
+commandApiShade          = { module = "dev.jorel:commandapi-paper-shade", version.ref = "commandApi" }
+commandApiKotlin         = { module = "dev.jorel:commandapi-kotlin-paper", version.ref = "commandApi" }
+fastUtil                 = { module = "it.unimi.dsi:fastutil", version.ref = "fastUtil" }
+foliaScheduler           = { module = "com.cjcrafter:foliascheduler", version.ref = "foliaScheduler" }
+gson                     = { module = "com.google.code.gson:gson", version.ref = "gson" }
+hikariCp                 = { module = "com.zaxxer:HikariCP", version.ref = "hikariCp" }
+jsonSimple               = { module = "com.googlecode.json-simple:json-simple", version.ref = "jsonSimple" }
+kotlinStdlib             = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
+xSeries                  = { module = "com.github.cryptomorin:XSeries", version.ref = "xSeries" }
+
+# Testing dependencies
+junitBom              = { module = "org.junit:junit-bom", version.ref = "junit" }
+junitApi              = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junit" }
+junitParams           = { module = "org.junit.jupiter:junit-jupiter-params", version.ref = "junit" }
+junitEngine           = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit" }
+junitPlatformLauncher = { module = "org.junit.platform:junit-platform-launcher" }

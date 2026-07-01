@@ -1,0 +1,47 @@
+InternalName: Test_PMC_Standard
+DisplayName: '&6标准交战PMC'
+EntityType: SKELETON
+Health: 120
+Damage: 5
+MovementSpeed: 0.24
+KnockbackResistance: 0.3
+
+VisionRange: 50
+LoseTargetRange: 70
+VisionAngle: 120
+VerticalVisionRange: 15
+MustHaveLineOfSight: false
+RememberTargetDuration: 15
+SearchDuration: 12
+ScanTickInterval: 5
+ForgetTargetOnObstruction: false
+MovingPlayerDetectionBonus: 1.5
+
+SoundDetection:
+  Enable: true
+  MaxSoundRange: 75
+  GunshotCoefficient: 2.2
+  StepCoefficient: 1.0
+  SoundRequireLineOfSight: false
+  HurtSoundTrigger: true
+
+Behaviors:
+  - RANGED_ATTACK
+  - TARGET_SEARCH
+  - HURT_TARGET
+TargetConditions:
+  - VISION_DETECTION
+  - SOUND_DETECTION
+  - HURT_BY_TARGET
+
+ChaseRange: 75
+CanChaseOverObstacles: true
+
+Metadata:
+  - Key: elitemobs
+    Value: true
+  - Key: tarkov_tier
+    Value: pmc
+
+TarkovTier: pmc
+TarkovPersonality: CAPTAIN

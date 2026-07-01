@@ -1,0 +1,345 @@
+# ==================== 怪物动画绑定配置 ====================
+# 配置路径: plugins/WeaponMechanicsCosmetics/animations/
+# 此配置绑定举枪、瞄准、匍匐、换弹、投掷动画的触发阈值
+
+# ==================== 基础姿态动画 ====================
+base-poses:
+  # 举枪姿态
+  aim-pose:
+    # 触发条件
+    trigger:
+      # 目标在射程内
+      condition: "TARGET_IN_RANGE"
+      # 最小触发距离
+      min-distance: 3
+      # 最大触发距离
+      max-distance: 50
+      # 触发延迟（tick）
+      delay: 5
+    # 动画参数
+    animation:
+      # 动画类型
+      type: "ENTITY_POSE"
+      # 姿态名称
+      pose-name: "AIMING"
+      # 动画时长（tick）
+      duration: 10
+      # 身体倾斜角度
+      body-tilt: 5.0
+      # 头部偏移
+      head-offset:
+        x: 0.0
+        y: 0.05
+        z: 0.0
+      # 手臂位置
+      arm-position:
+        main-hand:
+          x: 0.0
+          y: 0.1
+          z: 0.3
+        off-hand:
+          x: -0.2
+          y: 0.0
+          z: 0.1
+    # 动画过渡
+    transition:
+      # 平滑过渡
+      smooth: true
+      # 过渡时长（tick）
+      transition-duration: 5
+    # 动画优先级
+    priority: HIGH
+  
+  # 匍匐姿态
+  prone-pose:
+    trigger:
+      condition: "LOW_HP_OR_COVER"
+      # 血量阈值
+      hp-threshold: 0.3
+      # 掩体条件
+      cover-condition: true
+      delay: 10
+    animation:
+      type: "ENTITY_POSE"
+      pose-name: "PRONE"
+      duration: 60
+      # 匍匐高度降低
+      height-offset: -0.5
+      # 匍匐移动速度
+      move-speed: 0.3
+      # 匍匐射击精度提升
+      accuracy-multiplier: 0.5
+    priority: NORMAL
+
+# ==================== 战斗动作动画 ====================
+combat-animations:
+  # 射击动作
+  shoot-animation:
+    trigger:
+      condition: "ON_SHOOT"
+      # 无延迟立即触发
+      delay: 0
+    animation:
+      type: "ACTION"
+      action-name: "SHOOT"
+      duration: 2
+      # 后坐力动画
+      recoil:
+        # 后坐力幅度
+        amplitude: 0.3
+        # 后坐力方向（向后）
+        direction: "BACK"
+        # 后坐力频率
+        frequency: 10
+      # 射击时身体震动
+      shake:
+        amplitude: 0.1
+        frequency: 5
+      # 枪口火焰效果
+      muzzle-flash:
+        particle: "FLAME"
+        count: 3
+        offset:
+          x: 0.0
+          y: 0.1
+          z: 0.5
+    # 动画叠加规则
+    overlay:
+      # 射击动画叠加在举枪动画上
+      base-animation: "aim-pose"
+      # 不打断基础动画
+      interrupt-base: false
+    priority: HIGHEST
+  
+  # 换弹动作
+  reload-animation:
+    trigger:
+      condition: "AMMO_EMPTY"
+      delay: 2
+    animation:
+      type: "ACTION"
+      action-name: "RELOAD"
+      # 换弹时长（与武器换弹时长匹配）
+      duration: 50
+      # 换弹动作阶段
+      stages:
+        # 第一阶段：取出新弹匣
+        stage-1:
+          duration: 15
+          action: "FETCH_MAGAZINE"
+          off-hand-motion:
+            type: "REACH"
+            target: "BACKPACK"
+        # 第二阶段：更换弹匣
+        stage-2:
+          duration: 20
+          action: "SWAP_MAGAZINE"
+          both-hands-motion:
+            type: "SWAP"
+        # 第三阶段：上膛
+        stage-3:
+          duration: 15
+          action: "LOAD_MAGAZINE"
+          main-hand-motion:
+            type: "PULL"
+      # 换弹时停止移动
+      movement: "STOP"
+    priority: NORMAL
+  
+  # 投掷动作
+  throw-animation:
+    trigger:
+      condition: "ON_THROW"
+      delay: 0
+    animation:
+      type: "ACTION"
+      action-name: "THROW"
+      duration: 15
+      # 投掷动作阶段
+      stages:
+        # 第一阶段：准备投掷
+        stage-1:
+          duration: 5
+          action: "PREPARE_THROW"
+          arm-motion:
+            type: "RAISE"
+            target-height: 1.5
+        # 第二阶段：投掷出手
+        stage-2:
+          duration: 2
+          action: "RELEASE_THROW"
+          arm-motion:
+            type: "SWING"
+            speed: 2.0
+        # 第三阶段：恢复姿态
+        stage-3:
+          duration: 8
+          action: "RETURN_POSE"
+          arm-motion:
+            type: "LOWER"
+      # 投掷物类型映射
+      throw-type-map:
+        FRAG: "GRENADE_THROW"
+        FLASH: "FLASH_THROW"
+        SMOKE: "SMOKE_THROW"
+    priority: HIGH
+
+# ==================== 战术动作动画 ====================
+tactical-animations:
+  # 掩体进入动画
+  cover-enter:
+    trigger:
+      condition: "ENTER_COVER"
+      delay: 3
+    animation:
+      type: "ACTION"
+      action-name: "COVER_ENTER"
+      duration: 10
+      # 掩体进入动作
+      motion:
+        type: "SIDE_STEP"
+        direction: "COVER_SIDE"
+        speed: 1.0
+      # 进入掩体后姿态
+      post-pose: "COVER_CROUCH"
+    priority: HIGH
+  
+  # 掩体探头动画
+  cover-peek:
+    trigger:
+      condition: "PEEK_SHOOT"
+      delay: 0
+    animation:
+      type: "ACTION"
+      action-name: "COVER_PEEK"
+      duration: 15
+      # 探头动作
+      motion:
+        type: "LEAN"
+        direction: "PEEK_SIDE"
+        angle: 30.0
+      # 探头射击
+      shoot-on-peek: true
+      # 探头后回掩体
+      return-to-cover: true
+      # 回掩体延迟
+      return-delay: 10
+    priority: HIGH
+  
+  # 战术撤退动画
+  tactical-retreat:
+    trigger:
+      condition: "HP_LOW_AND_NO_COVER"
+      hp-threshold: 0.3
+      delay: 5
+    animation:
+      type: "ACTION"
+      action-name: "RETREAT"
+      duration: 40
+      # 撤退动作
+      motion:
+        type: "BACKWARD_RUN"
+        speed: 1.2
+      # 撤退射击
+      shoot-on-retreat: true
+      # 撤退射击频率
+      retreat-shoot-interval: 20
+    priority: NORMAL
+  
+  # 侧翼包抄动画
+  flank-move:
+    trigger:
+      condition: "FLANK_TARGET"
+      delay: 10
+    animation:
+      type: "ACTION"
+      action-name: "FLANK"
+      duration: 60
+      # 包抄动作
+      motion:
+        type: "CIRCULAR_MOVE"
+        direction: "FLANK_SIDE"
+        radius: 15
+        speed: 1.0
+      # 包抄射击
+      shoot-on-flank: true
+    priority: NORMAL
+
+# ==================== 动画触发阈值配置 ====================
+trigger-thresholds:
+  # 举枪触发阈值
+  aim:
+    # 最小目标距离
+    min-target-distance: 3
+    # 最大目标距离
+    max-target-distance: 50
+    # 视线必须存在
+    require-line-of-sight: true
+    # 目标必须在视野内
+    require-in-view: true
+    # 冷却时间（tick）
+    cooldown: 30
+  
+  # 射击触发阈值
+  shoot:
+    # 无冷却（射击由AI控制）
+    cooldown: 0
+    # 必须有弹药
+    require-ammo: true
+    # 必须有武器
+    require-weapon: true
+  
+  # 换弹触发阈值
+  reload:
+    # 弹药为空时触发
+    ammo-empty-trigger: true
+    # 弹药低于阈值触发
+    ammo-low-threshold: 5
+    # 换弹间隔（防止频繁换弹）
+    reload-interval: 100
+  
+  # 投掷触发阈值
+  throw:
+    # 最小投掷距离
+    min-throw-distance: 10
+    # 最大投掷距离
+    max-throw-distance: 25
+    # 玩家必须在掩体后
+    require-cover-condition: true
+    # 投掷间隔
+    throw-interval: 150
+  
+  # 匍匐触发阈值
+  prone:
+    # 血量阈值
+    hp-threshold: 0.3
+    # 必须有掩体
+    require-cover: true
+    # 匍匐最小时长
+    min-duration: 30
+
+# ==================== 动画同步规则 ====================
+sync-rules:
+  # 同步间隔（tick）
+  sync-interval: 4
+  # 同步范围
+  sync-range: 64
+  # 远距离降级同步
+  distance-degradation:
+    # 近距离完全同步
+    full-sync-range: 32
+    # 中距离降低同步频率
+    partial-sync-range: 48
+    # 远距离只同步关键帧
+    keyframe-sync-range: 64
+    # 远距离同步间隔
+    degraded-sync-interval: 10
+  
+  # 动画插值
+  interpolation:
+    # 开启平滑插值
+    enabled: true
+    # 插值算法
+    algorithm: "LINEAR"
+    # 插值步数
+    steps: 5

@@ -1,0 +1,22 @@
+name: EM-WM-Bridge
+version: '1.3.0'
+main: com.emwbridge.EMWMBridge
+api-version: '1.21'
+author: EMWMBridge
+depend:
+  - EliteMobs
+  - WeaponMechanics
+softdepend:
+  - MechanicsCore
+
+commands:
+  emwm:
+    description: EM-WM-Bridge 主命令
+    usage: /emwm <reload|debug>
+    permission: emwm.admin
+    permission-message: '&c你没有权限执行此命令'
+
+permissions:
+  emwm.admin:
+    description: EM-WM-Bridge 管理权限
+    default: op

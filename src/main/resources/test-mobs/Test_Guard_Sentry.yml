@@ -1,0 +1,43 @@
+InternalName: Test_Guard_Sentry
+DisplayName: '&4据点警戒守卫'
+EntityType: VINDICATOR
+Health: 150
+Damage: 5
+MovementSpeed: 0.15
+KnockbackResistance: 0.4
+
+VisionRange: 55
+LoseTargetRange: 75
+VisionAngle: 150
+VerticalVisionRange: 12
+MustHaveLineOfSight: false
+RememberTargetDuration: 18
+SearchDuration: 10
+ScanTickInterval: 6
+ForgetTargetOnObstruction: false
+
+SoundDetection:
+  Enable: true
+  MaxSoundRange: 80
+  GunshotCoefficient: 2.3
+  SoundRequireLineOfSight: false
+
+Behaviors:
+  - RANGED_ATTACK
+  - TARGET_SEARCH
+TargetConditions:
+  - VISION_DETECTION
+  - SOUND_DETECTION
+  - HURT_BY_TARGET
+
+ChaseRange: 70
+CanChaseOverObstacles: true
+
+Metadata:
+  - Key: elitemobs
+    Value: true
+  - Key: tarkov_tier
+    Value: pmc
+
+TarkovTier: pmc
+TarkovPersonality: SUPPRESSOR

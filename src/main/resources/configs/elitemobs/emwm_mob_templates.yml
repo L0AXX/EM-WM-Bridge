@@ -1,0 +1,264 @@
+# ==================== EM-WM-Bridge 怪物武器配置模板 ====================
+# 此配置需放入 EliteMobs 的怪物配置文件中（如 custom_bosses.yml）
+# 配置路径: plugins/EliteMobs/custom_bosses/
+
+# ==================== SCAV 拾荒者（低级精英） ====================
+scav_basic:
+  entityType: ZOMBIE
+  name: "&e&l拾荒者"
+  level: 10
+  health: 150
+  damage: 8
+  
+  # EMWM 武器桥接配置段（核心配置）
+  emwm:
+    # 武器池（随机抽取一把）
+    weapon-pool:
+      - "MP5"
+      - "AK74U"
+      - "M870"
+    # 主武器权重（选一把的概率）
+    weapon-weight:
+      MP5: 0.4
+      AK74U: 0.3
+      M870: 0.3
+    
+    # 弹药配置
+    ammo:
+      # 弹匣容量
+      magazine-size: 30
+      # 换弹时长（tick）
+      reload-duration: 60
+      # 无弹药时是否换弹
+      auto-reload: true
+    
+    # 射击参数
+    shooting:
+      # 射速（shots/second）
+      fire-rate: 4.0
+      # 散布半径（度）
+      spread: 5.0
+      # ADS散布倍率
+      ads-spread-multiplier: 0.5
+      # 有效射程（格）
+      effective-range: 25
+      # 最大射程（格）
+      max-range: 40
+      # 开镜距离阈值（超过此距离自动ADS）
+      ads-range-threshold: 15
+    
+    # 战术参数
+    tactics:
+      # 近战距离阈值（小于此距离切换近战）
+      melee-range: 3.0
+      # 站立射击（开火时禁止移动）
+      stand-and-shoot: true
+      # 压制射击触发血量阈值（血量>此值时压制）
+      suppress-hp-threshold: 0.5
+      # 撤退血量阈值（血量<此值时撤退）
+      retreat-hp-threshold: 0.3
+    
+    # AI 行为权重
+    behavior:
+      # 攻击倾向
+      aggressiveness: 0.6
+      # 掩体利用率
+      cover-usage: 0.4
+      # 搜索持续时间（tick）
+      search-duration: 120
+
+# ==================== PMC 雇佣兵（中级精英） ====================
+pmc_operator:
+  entityType: ZOMBIE
+  name: "&c&lPMC 雇佣兵"
+  level: 25
+  health: 300
+  damage: 12
+  
+  emwm:
+    weapon-pool:
+      - "AK47"
+      - "M4A1"
+      - "SCAR_H"
+    weapon-weight:
+      AK47: 0.35
+      M4A1: 0.35
+      SCAR_H: 0.3
+    
+    ammo:
+      magazine-size: 30
+      reload-duration: 50
+      auto-reload: true
+    
+    shooting:
+      fire-rate: 6.0
+      spread: 3.5
+      ads-spread-multiplier: 0.4
+      effective-range: 35
+      max-range: 50
+      ads-range-threshold: 20
+    
+    tactics:
+      melee-range: 2.0
+      stand-and-shoot: true
+      suppress-hp-threshold: 0.6
+      retreat-hp-threshold: 0.25
+    
+    behavior:
+      aggressiveness: 0.75
+      cover-usage: 0.6
+      search-duration: 180
+
+# ==================== BOSS 高级精英 ====================
+boss_commander:
+  entityType: ZOMBIE
+  name: "&4&l&n指挥官"
+  level: 50
+  health: 800
+  damage: 20
+  
+  emwm:
+    # Boss使用高级武器
+    weapon-pool:
+      - "MK47"
+      - "HK416"
+      - "MINIGUN"
+    weapon-weight:
+      MK47: 0.4
+      HK416: 0.35
+      MINIGUN: 0.25
+    
+    ammo:
+      magazine-size: 60
+      reload-duration: 40
+      auto-reload: true
+    
+    shooting:
+      fire-rate: 8.0
+      spread: 2.0
+      ads-spread-multiplier: 0.3
+      effective-range: 45
+      max-range: 60
+      ads-range-threshold: 25
+    
+    tactics:
+      melee-range: 1.5
+      stand-and-shoot: true
+      suppress-hp-threshold: 0.7
+      retreat-hp-threshold: 0.2
+    
+    # Boss专属能力
+    special:
+      # 投掷物配置
+      throwables:
+        # 手雷投掷间隔（tick）
+        frag-interval: 200
+        # 闪光弹投掷间隔
+        flash-interval: 150
+        # 烟雾弹投掷间隔
+        smoke-interval: 300
+        # 投掷触发条件：玩家在掩体后
+        throw-if-cover: true
+        # 投掷最小距离
+        throw-min-range: 10
+        # 投掷最大距离
+        throw-max-range: 25
+    
+    behavior:
+      aggressiveness: 0.9
+      cover-usage: 0.7
+      search-duration: 240
+      # 呼叫支援能力
+      call-reinforcements: true
+      # 小队指挥能力
+      squad-leader: true
+
+# ==================== 狙击手特种单位 ====================
+sniper_elite:
+  entityType: SKELETON
+  name: "&b&l狙击手"
+  level: 30
+  health: 200
+  damage: 35
+  
+  emwm:
+    weapon-pool:
+      - "AWM"
+      - "M98B"
+      - "SCAR_H"
+    weapon-weight:
+      AWM: 0.5
+      M98B: 0.3
+      SCAR_H: 0.2
+    
+    ammo:
+      magazine-size: 5
+      reload-duration: 80
+      auto-reload: true
+    
+    shooting:
+      # 狙击手低射速、高精度
+      fire-rate: 0.8
+      spread: 0.5
+      ads-spread-multiplier: 0.1
+      effective-range: 60
+      max-range: 80
+      ads-range-threshold: 30
+    
+    tactics:
+      melee-range: 1.0
+      stand-and-shoot: true
+      suppress-hp-threshold: 0.8
+      retreat-hp-threshold: 0.35
+    
+    behavior:
+      aggressiveness: 0.5
+      cover-usage: 0.9
+      search-duration: 300
+      # 狙击手优先远程攻击
+      prefer-long-range: true
+
+# ==================== 重装突击手 ====================
+heavy_assault:
+  entityType: ZOMBIE
+  name: "&8&l重装突击手"
+  level: 35
+  health: 500
+  damage: 15
+  
+  emwm:
+    weapon-pool:
+      - "SAIGA12"
+      - "M249"
+      - "RPK"
+    weapon-weight:
+      SAIGA12: 0.4
+      M249: 0.35
+      RPK: 0.25
+    
+    ammo:
+      magazine-size: 100
+      reload-duration: 100
+      auto-reload: true
+    
+    shooting:
+      # 重装单位高射速、低精度
+      fire-rate: 10.0
+      spread: 8.0
+      ads-spread-multiplier: 0.6
+      effective-range: 20
+      max-range: 35
+      ads-range-threshold: 10
+    
+    tactics:
+      melee-range: 4.0
+      stand-and-shoot: false
+      suppress-hp-threshold: 0.5
+      retreat-hp-threshold: 0.15
+    
+    behavior:
+      aggressiveness: 0.95
+      cover-usage: 0.2
+      search-duration: 60
+      # 重装单位冲锋倾向
+      prefer-rush: true

@@ -1,0 +1,27 @@
+# Gradle编译输出（必须屏蔽，最大Token消耗源）
+build/
+bin/
+.gradle/
+gradle/
+*.class
+*.jar
+
+# 日志、临时文件
+*.log
+*.txt
+*.tmp
+.cache/
+
+# IDE配置文件
+.idea/
+.vscode/
+.git/
+.DS_Store
+
+# 文档、说明类非代码文件
+docs/
+
+# 只允许Trae索引这三个核心源码目录
+!src/main/java/
+!src/main/resources/
+!src/test/java/

@@ -1,0 +1,330 @@
+# ==================== WeaponMechanics AI枪械专属配置 ====================
+# 配置路径: plugins/WeaponMechanics/weapons/
+# 此配置为AI怪物定制枪械参数，包括后坐力、弹道、穿墙、手雷触发
+
+# ==================== 突击步枪类 ====================
+AK47_AI:
+  Info:
+    Weapon_Type: "ASSAULT_RIFLE"
+    # AI专属标识
+    AI_Weapon: true
+    # AI射击模式（全自动）
+    Fully_Automatic_Shots_Per_Second: 6
+    # AI射速浮动（±20%随机变化）
+    AI_Fire_Rate_Variance: 0.2
+    # AI射击间隔范围
+    AI_Burst_Interval: "3-8"
+    # AI连发长度
+    AI_Burst_Size: "5-15"
+  
+  Damage:
+    # 基础伤害
+    Base: 8
+    # AI伤害修正（略低于玩家）
+    AI_Damage_Multiplier: 0.8
+    # 穿透伤害衰减
+    Through_Multiplier: 0.7
+    # 爆头倍率
+    Headshot_Multiplier: 2.0
+    # 爆头触发概率（AI精准度）
+    AI_Headshot_Chance: 0.15
+  
+  Projectile:
+    # 弹道速度
+    Speed: 100
+    # 弹道拖曳
+    Drag: 0.01
+    # 最大射程
+    Maximum_Distance: 50
+    # AI有效射程
+    AI_Effective_Range: 35
+    # 弹道粒子（曳光）
+    Trail:
+      Particle: "DUST"
+      Color: ORANGE
+  
+  Spread:
+    # 基础散布
+    Base_Spread: 3.5
+    # AI散布修正（比玩家略大）
+    AI_Spread_Multiplier: 1.2
+    # ADS散布
+    Modify_Spread_When:
+      Zooming: "40%"
+    # 移动散布惩罚
+    Moving:
+      Walking: "+1.0"
+      Running: "+2.0"
+      Sneaking: "-0.5"
+    # 跳跃散布惩罚
+    Jumping: "+3.0"
+  
+  Recoil:
+    # 站立后坐力
+    Recoil_Time: 120
+    Starting_Recoil: 2.0
+    Ending_Recoil: 1.0
+    # AI后坐力控制（更稳定）
+    AI_Recoil_Control: 0.8
+    # ADS后坐力
+    Modify_Recoil_When:
+      Zooming: "50%"
+  
+  Reload:
+    # 换弹时长（tick）
+    Reload_Duration: 50
+    # AI换弹修正（略快）
+    AI_Reload_Speed: 1.1
+    # 弹匣容量
+    Magazine_Size: 30
+    # AI弹药起始量
+    AI_Start_Ammo: 30
+  
+  Shoot:
+    # 开火延时
+    Delay_Between_Shots: 0
+    # 子弹消散时间
+    Projectile_Time: 300
+    # 射击声音
+    Shoot_Sound:
+      Sound: "entity.generic.explode"
+      Volume: 0.8
+      Pitch: 2.0
+  
+  # AI专属穿墙规则
+  Penetration:
+    # 开启穿墙检测
+    Wall_Penetration: true
+    # 可穿透方块
+    Penetrable_Materials:
+      - "GLASS"
+      - "GLASS_PANE"
+      - "IRON_BARS"
+      - "COBWEB"
+      - "LEAVES"
+    # 穿透后伤害衰减
+    Penetration_Damage_Decay: 0.3
+    # 最大穿透层数
+    Max_Penetration_Layers: 2
+
+# ==================== 狙击步枪类 ====================
+AWM_AI:
+  Info:
+    Weapon_Type: "SNIPER_RIFLE"
+    AI_Weapon: true
+    # 狙击手低射速高精度
+    Fully_Automatic_Shots_Per_Second: 0.8
+    AI_Fire_Rate_Variance: 0.1
+    AI_Burst_Interval: "100-200"
+    AI_Burst_Size: "1-2"
+  
+  Damage:
+    Base: 25
+    AI_Damage_Multiplier: 0.9
+    Headshot_Multiplier: 3.0
+    AI_Headshot_Chance: 0.3    # 狙击手爆头概率更高
+  
+  Projectile:
+    Speed: 150
+    Drag: 0.005
+    Maximum_Distance: 80
+    AI_Effective_Range: 60
+    Trail:
+      Particle: "DUST"
+      Color: RED
+  
+  Spread:
+    Base_Spread: 0.5
+    AI_Spread_Multiplier: 0.5    # 狙击手高精度
+    Modify_Spread_When:
+      Zooming: "10%"
+  
+  Recoil:
+    Recoil_Time: 200
+    Starting_Recoil: 5.0
+    Ending_Recoil: 3.0
+    AI_Recoil_Control: 0.9
+  
+  Reload:
+    Reload_Duration: 80
+    AI_Reload_Speed: 1.0
+    Magazine_Size: 5
+    AI_Start_Ammo: 5
+  
+  # 狙击手专属能力
+  AI_Sniper:
+    # 远距离瞄准优先
+    Prefer_Long_Range: true
+    # 掩体后探头射击
+    Peek_And_Shoot: true
+    # 探头时长（tick）
+    Peek_Duration: 15
+    # 伏击射击精度倍率
+    Ambush_Accuracy_Multiplier: 2.0
+
+# ==================== 重机枪类 ====================
+M249_AI:
+  Info:
+    Weapon_Type: "LMG"
+    AI_Weapon: true
+    # 重装单位高射速
+    Fully_Automatic_Shots_Per_Second: 10
+    AI_Fire_Rate_Variance: 0.3
+    AI_Burst_Interval: "2-5"
+    AI_Burst_Size: "20-40"
+  
+  Damage:
+    Base: 6
+    AI_Damage_Multiplier: 0.7
+    Headshot_Multiplier: 1.5
+    AI_Headshot_Chance: 0.05
+  
+  Projectile:
+    Speed: 80
+    Drag: 0.02
+    Maximum_Distance: 40
+    AI_Effective_Range: 25
+  
+  Spread:
+    Base_Spread: 8.0
+    AI_Spread_Multiplier: 1.5    # 重装低精度
+    Modify_Spread_When:
+      Zooming: "60%"
+  
+  Recoil:
+    Recoil_Time: 100
+    Starting_Recoil: 4.0
+    Ending_Recoil: 2.0
+    AI_Recoil_Control: 0.6
+  
+  Reload:
+    Reload_Duration: 100
+    AI_Reload_Speed: 1.2
+    Magazine_Size: 100
+    AI_Start_Ammo: 100
+  
+  # 重装专属压制能力
+  AI_Suppression:
+    # 开启压制射击模式
+    Suppression_Mode: true
+    # 压制射击散布扩大倍率
+    Suppression_Spread_Multiplier: 2.0
+    # 压制射击射速提升
+    Suppression_Fire_Rate_Multiplier: 1.5
+    # 压制射击触发距离范围
+    Suppression_Range: "15-35"
+
+# ==================== 冲锋枪类 ====================
+MP5_AI:
+  Info:
+    Weapon_Type: "SMG"
+    AI_Weapon: true
+    Fully_Automatic_Shots_Per_Second: 8
+    AI_Fire_Rate_Variance: 0.2
+    AI_Burst_Interval: "2-4"
+    AI_Burst_Size: "8-15"
+  
+  Damage:
+    Base: 5
+    AI_Damage_Multiplier: 0.8
+    Headshot_Multiplier: 2.0
+    AI_Headshot_Chance: 0.1
+  
+  Projectile:
+    Speed: 90
+    Drag: 0.015
+    Maximum_Distance: 35
+    AI_Effective_Range: 25
+  
+  Spread:
+    Base_Spread: 4.0
+    AI_Spread_Multiplier: 1.1
+    Modify_Spread_When:
+      Zooming: "50%"
+  
+  Recoil:
+    Recoil_Time: 80
+    Starting_Recoil: 1.5
+    Ending_Recoil: 0.8
+    AI_Recoil_Control: 0.85
+  
+  Reload:
+    Reload_Duration: 40
+    AI_Reload_Speed: 1.2
+    Magazine_Size: 30
+    AI_Start_Ammo: 30
+  
+  # 冲锋枪专属近战能力
+  AI_Close_Combat:
+    # 近战距离优先
+    Close_Range_Priority: true
+    # 近战射速提升
+    Close_Range_Fire_Rate_Multiplier: 1.3
+    # 近战精度提升
+    Close_Range_Accuracy_Multiplier: 0.8
+
+# ==================== 手雷AI配置 ====================
+FRAG_GRENADE_AI:
+  Info:
+    Weapon_Type: "THROWABLE"
+    AI_Weapon: true
+    # AI投掷间隔（tick）
+    AI_Throw_Interval: 200
+    # AI投掷触发条件
+    AI_Throw_Conditions:
+      - "PLAYER_IN_COVER"      # 玩家在掩体后
+      - "MULTIPLE_TARGETS"     # 多目标聚集
+      - "TARGET_LOW_HP"        # 目标血量低
+  
+  Explosion:
+    # 爆炸伤害
+    Damage: 15
+    # 爆炸半径
+    Explosion_Radius: 5
+    # AI爆炸伤害修正
+    AI_Damage_Multiplier: 0.9
+    # 爆炸延时（tick）
+    Explosion_Delay: 40
+  
+  Projectile:
+    # 投掷物速度
+    Speed: 1.5
+    # 最大投掷距离
+    Maximum_Distance: 25
+    # AI投掷距离范围
+    AI_Throw_Range: "15-25"
+  
+  # AI投掷物智能行为
+  AI_Smart_Throw:
+    # 预判玩家移动
+    Predict_Player_Movement: true
+    # 投掷精度
+    Throw_Accuracy: 0.8
+    # 投掷目标选择
+    Target_Selection:
+      - "HIGHEST_AGGRO"
+      - "COVERED_PLAYER"
+      - "GROUPED_TARGETS"
+
+# ==================== 闪光弹AI配置 ====================
+FLASH_GRENADE_AI:
+  Info:
+    Weapon_Type: "THROWABLE"
+    AI_Weapon: true
+    AI_Throw_Interval: 150
+  
+  Effects:
+    # 致盲时长（tick）
+    Blindness_Duration: 100
+    # 致盲范围
+    Effect_Radius: 8
+    # AI致盲触发条件
+    AI_Blind_Conditions:
+      - "PLAYER_ATTACKING"
+      - "PLAYER_IN_FRONT"
+  
+  AI_Smart_Throw:
+    # 优先致盲正在攻击的玩家
+    Target_Attacking_Player: true
+    # 投掷精度
+    Throw_Accuracy: 0.7

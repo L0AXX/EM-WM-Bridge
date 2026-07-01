@@ -1,0 +1,308 @@
+# ==================== WMPlus 投掷物AI规则配置 ====================
+# 配置路径: plugins/WeaponMechanicsPlus/config.yml
+# 此配置实现怪物根据玩家掩体位置扔闪光弹、手雷压制
+
+# ==================== 投掷物AI智能系统 ====================
+throwable-ai:
+  # 启用投掷物AI
+  enabled: true
+  
+  # 投掷物类型配置
+  throwables:
+    # 破片手雷
+    frag_grenade:
+      # AI使用概率（每tick检查）
+      use-chance: 0.02
+      # 最大携带数量
+      max-carry: 3
+      # 投掷触发条件
+      throw-conditions:
+        # 条件1：玩家在掩体后（无法直接射击）
+        player-in-cover:
+          enabled: true
+          priority: 1.0
+          # 检测玩家是否有掩体方块
+          check-blocks:
+            - "STONE"
+            - "COBBLESTONE"
+            - "BRICK"
+            - "IRON_BLOCK"
+            - "FENCE"
+            - "WALL"
+          # 检测范围（玩家周围）
+          check-radius: 3
+        
+        # 条件2：多目标聚集（效率最大化）
+        multiple-targets:
+          enabled: true
+          priority: 0.8
+          # 最小目标数量
+          min-targets: 2
+          # 目标聚集半径
+          group-radius: 5
+        
+        # 条件3：目标血量低（收割机会）
+        target-low-hp:
+          enabled: true
+          priority: 0.6
+          # 血量阈值（百分比）
+          hp-threshold: 0.25
+        
+        # 条件4：目标正在换弹（防守空窗期）
+        target-reloading:
+          enabled: true
+          priority: 0.5
+        
+        # 条件5：目标正在治疗/吃东西
+        target-healing:
+          enabled: true
+          priority: 0.4
+      
+      # 投掷参数
+      throw-params:
+        # 投掷速度
+        speed: 1.5
+        # 投掷角度（仰角）
+        angle: 45.0
+        # 最大投掷距离
+        max-distance: 25
+        # 最小投掷距离
+        min-distance: 10
+        # 爆炸延时（tick）
+        explosion-delay: 40
+        
+      # 智能预测
+      smart-predict:
+        # 预判玩家移动方向
+        predict-player-movement: true
+        # 预判时长（tick）
+        predict-duration: 30
+        # 预判精度
+        predict-accuracy: 0.8
+        # 投掷目标偏移（预判补偿）
+        target-offset:
+          x: "PLAYER_VELOCITY_X * 0.5"
+          y: "PLAYER_VELOCITY_Y * 0.3"
+          z: "PLAYER_VELOCITY_Z * 0.5"
+    
+    # 闪光弹
+    flash_grenade:
+      use-chance: 0.03
+      max-carry: 4
+      
+      throw-conditions:
+        # 条件1：目标正在攻击（打断攻击）
+        player-attacking:
+          enabled: true
+          priority: 1.0
+          # 检测玩家是否正在射击
+          check-shooting: true
+        
+        # 条件2：目标在AI正面（致盲效果最大化）
+        player-in-front:
+          enabled: true
+          priority: 0.8
+          # 前方角度范围（度）
+          front-angle-range: 60
+        
+        # 条件3：多目标同时攻击（群体致盲）
+        multiple-attackers:
+          enabled: true
+          priority: 0.7
+          min-attackers: 2
+        
+        # 条件4：AI血量低（防守反击）
+        ai-low-hp:
+          enabled: true
+          priority: 0.5
+          hp-threshold: 0.35
+      
+      throw-params:
+        speed: 2.0
+        angle: 30.0
+        max-distance: 20
+        min-distance: 5
+        # 致盲范围
+        effect-radius: 8
+        # 致盲时长（tick）
+        blindness-duration: 100
+        
+      smart-predict:
+        predict-player-movement: false    # 闪光弹不需要预判
+        # 直接投掷到玩家脚下
+        target-ground: true
+    
+    # 烟雾弹
+    smoke_grenade:
+      use-chance: 0.01
+      max-carry: 2
+      
+      throw-conditions:
+        # 条件1：AI需要撤退掩护
+        retreat-cover:
+          enabled: true
+          priority: 1.0
+          # AI血量阈值
+          hp-threshold: 0.3
+        
+        # 条件2：遮挡玩家视线（掩护队友）
+        block-player-vision:
+          enabled: true
+          priority: 0.8
+          # 检测玩家视线方向
+          check-player-look-direction: true
+        
+        # 条件3：小队呼叫掩护
+        squad-cover-call:
+          enabled: true
+          priority: 0.7
+          # 检测小队呼叫信号
+          check-squad-signal: true
+      
+      throw-params:
+        speed: 1.2
+        angle: 60.0
+        max-distance: 15
+        min-distance: 5
+        # 烟雾持续时间（tick）
+        smoke-duration: 300
+        # 烟雾范围
+        smoke-radius: 6
+        
+      smart-predict:
+        # 烟雾弹投掷到撤退路径上
+        target-retreat-path: true
+
+# ==================== 投掷物协同规则 ====================
+throwable-coordination:
+  # 小队投掷物协同
+  squad-coordination:
+    # 开启小队协同投掷
+    enabled: true
+    # 协同投掷间隔（tick）
+    coordination-interval: 100
+    # 协同投掷数量上限
+    max-squad-throw: 2
+    # 协同投掷类型（同时投掷相同类型）
+    same-type-coordination: true
+    # 协同投掷目标（集中攻击同一目标）
+    focus-target: true
+  
+  # 避免重复投掷
+  avoid-duplicate:
+    # 开启重复投掷检测
+    enabled: true
+    # 检测半径（避免同时投掷到相同区域）
+    duplicate-radius: 5
+    # 检测时长（tick）
+    duplicate-duration: 50
+  
+  # 投掷物友好伤害
+  friendly-damage:
+    # 开启友军伤害检测
+    enabled: true
+    # 阵营伤害免疫
+    faction-immunity:
+      same-faction: true
+      squad: true
+    # 警告友军（投掷前发出警告）
+    warn-friendly: true
+    # 警告延迟（tick）
+    warn-delay: 20
+
+# ==================== 投掷物AI决策 ====================
+throwable-decision:
+  # 投掷优先级排序
+  priority-ranking:
+    # 紧急情况优先级
+    emergency:
+      # AI血量<25%时闪光弹优先（防守反击）
+      ai-low-hp-flash: 1.0
+      # 多目标聚集时手雷优先
+      multi-target-frag: 0.9
+      # 撤退时烟雾弹优先
+      retreat-smoke: 0.8
+    
+    # 战术情况优先级
+    tactical:
+      # 玩家在掩体后手雷优先
+      player-cover-frag: 1.0
+      # 玩家攻击时闪光弹优先
+      player-attack-flash: 0.9
+      # 小队掩护时烟雾弹优先
+      squad-cover-smoke: 0.7
+  
+  # 投掷决策延迟
+  decision-delay:
+    # 决策延迟（tick）
+    delay: 30
+    # 紧急情况减少延迟
+    emergency-delay-reduction: 20
+  
+  # 投掷失败处理
+  throw-failure:
+    # 投掷失败检测
+    enabled: true
+    # 失败原因检测
+    failure-reasons:
+      - "NO_TARGET"
+      - "TARGET_TOO_FAR"
+      - "BLOCKED_BY_WALL"
+      - "NO_AMMO"
+    # 失败后重试间隔
+    retry-interval: 100
+    # 失败后选择替代投掷物
+    fallback-throwable:
+      frag: flash
+      flash: smoke
+      smoke: none
+
+# ==================== 投掷物视觉效果 ====================
+throwable-visuals:
+  # 投掷物粒子效果
+  particle-effects:
+    # 手雷投掷轨迹
+    frag-trajectory:
+      particle: "DUST"
+      color: RED
+      count: 5
+      interval: 2
+    
+    # 闪光弹投掷轨迹
+    flash-trajectory:
+      particle: "DUST"
+      color: WHITE
+      count: 3
+      interval: 2
+    
+    # 烟雾弹投掷轨迹
+    smoke-trajectory:
+      particle: "SMOKE"
+      count: 10
+      interval: 3
+  
+  # 投掷音效
+  throw-sounds:
+    # 投掷动作音效
+    throw-action:
+      sound: "entity.item.throw"
+      volume: 0.8
+      pitch: 1.0
+    
+    # 手雷爆炸音效
+    frag-explosion:
+      sound: "entity.generic.explode"
+      volume: 1.0
+      pitch: 0.8
+    
+    # 闪光弹触发音效
+    flash-trigger:
+      sound: "entity.firework.blast"
+      volume: 0.8
+      pitch: 1.5
+    
+    # 烟雾弹触发音效
+    smoke-trigger:
+      sound: "block.fire.extinguish"
+      volume: 0.5
+      pitch: 0.8

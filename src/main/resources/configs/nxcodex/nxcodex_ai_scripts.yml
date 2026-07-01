@@ -1,0 +1,359 @@
+# ==================== NxCodex AI行为脚本配置 ====================
+# 配置路径: plugins/NxCodex/scripts/
+# 此配置实现怪物状态机、阵营仇恨、地形利用、场景触发
+
+# ==================== 怪物状态机脚本 ====================
+# 血量分段行为：满血压制射击、残血找掩体撤退、低血量呼叫援军
+
+state-machine:
+  # 状态定义
+  states:
+    # 满血压制状态
+    suppress:
+      # 触发条件
+      conditions:
+        hp-range: "0.7-1.0"
+        has-target: true
+        line-of-sight: true
+      # 行为配置
+      behavior:
+        # 压制射击模式
+        shoot-mode: "SUPPRESS"
+        # 射击频率提升
+        fire-rate-multiplier: 1.5
+        # 散布扩大（压制覆盖更大范围）
+        spread-multiplier: 2.0
+        # 不移动（站立压制）
+        movement: "STAND"
+        # 压制时长（tick）
+        duration: 60
+      # 状态转换
+      transitions:
+        - target: "retreat"
+          condition: "HP<0.5"
+        - target: "cover"
+          condition: "NO_LINE_OF_SIGHT"
+    
+    # 掩体射击状态
+    cover:
+      # 触发条件
+      conditions:
+        hp-range: "0.5-0.7"
+        has-cover: true
+      # 行为配置
+      behavior:
+        # 掩体后射击模式
+        shoot-mode: "PEEK"
+        # 探头射击间隔
+        peek-interval: 40
+        # 探头时长
+        peek-duration: 20
+        # 探头后回掩体
+        movement: "PEEK_AND_HIDE"
+        # 精度提升（掩体后冷静射击）
+        spread-multiplier: 0.5
+      # 状态转换
+      transitions:
+        - target: "retreat"
+          condition: "HP<0.3"
+        - target: "suppress"
+          condition: "HP>0.7"
+    
+    # 撤退状态
+    retreat:
+      # 触发条件
+      conditions:
+        hp-range: "0.25-0.5"
+        has-cover-nearby: true
+      # 行为配置
+      behavior:
+        # 撤退射击模式（边退边打）
+        shoot-mode: "COVER_FIRE"
+        # 撤退射击频率降低
+        fire-rate-multiplier: 0.5
+        # 撤退方向（远离目标）
+        movement: "RETREAT_FROM_TARGET"
+        # 撤退速度
+        move-speed: 1.2
+        # 撤退目标距离
+        retreat-distance: 25
+      # 状态转换
+      transitions:
+        - target: "call-reinforcements"
+          condition: "HP<0.25"
+        - target: "cover"
+          condition: "REACHED_COVER"
+    
+    # 呼叫援军状态
+    call-reinforcements:
+      # 触发条件
+      conditions:
+        hp-range: "0.0-0.25"
+        is-squad-member: true
+      # 行为配置
+      behavior:
+        # 呼救射击模式（防御射击）
+        shoot-mode: "DEFEND"
+        # 呼救间隔
+        call-interval: 100
+        # 呼救范围
+        call-range: 50
+        # 呼救时停止移动
+        movement: "STAND"
+        # 生成援军类型
+        reinforcement-types:
+          - "scav_basic"
+          - "pmc_operator"
+        # 援军数量
+        reinforcement-count: 2
+      # 状态转换
+      transitions:
+        - target: "death"
+          condition: "HP<=0"
+
+# ==================== 阵营仇恨脚本 ====================
+# 小队组队、友军不互伤、优先攻击掩体近的玩家、多目标仇恨优先级
+
+faction-system:
+  # 阵营定义
+  factions:
+    # SCAV阵营
+    scav:
+      name: "拾荒者"
+      color: "YELLOW"
+      # 同阵营关系
+      same-faction: "FRIENDLY"
+      # 对PMC关系
+      pmc: "HOSTILE"
+      # 对Boss关系
+      boss: "NEUTRAL"
+      # 对玩家关系
+      player: "HOSTILE"
+    
+    # PMC阵营
+    pmc:
+      name: "雇佣兵"
+      color: "RED"
+      same-faction: "FRIENDLY"
+      scav: "HOSTILE"
+      boss: "HOSTILE"
+      player: "HOSTILE"
+    
+    # Boss阵营
+    boss:
+      name: "指挥官"
+      color: "DARK_RED"
+      same-faction: "FRIENDLY"
+      scav: "NEUTRAL"    # Boss不攻击SCAV
+      pmc: "HOSTILE"
+      player: "HOSTILE"
+  
+  # 小队规则
+  squad-rules:
+    # 小队最大人数
+    max-members: 5
+    # 小队生成概率
+    squad-spawn-chance: 0.3
+    # 小队集结半径
+    rally-radius: 20
+    # 小队共享仇恨
+    shared-aggro: true
+    # 小队共享视野
+    shared-vision: true
+  
+  # 仇恨优先级规则
+  aggro-priority:
+    # 仇恨计算公式
+    formula: "damage * 1.0 + distance * 0.5 + threat * 0.3"
+    # 优先攻击条件
+    priority-conditions:
+      # 优先攻击离掩体近的玩家（容易被击中）
+      - condition: "PLAYER_NO_COVER"
+        multiplier: 2.0
+      # 优先攻击正在换弹的玩家
+      - condition: "PLAYER_RELOADING"
+        multiplier: 1.5
+      # 优先攻击正在治疗/吃东西的玩家
+      - condition: "PLAYER_HEALING"
+        multiplier: 1.3
+      # 优先攻击距离近的玩家
+      - condition: "DISTANCE<10"
+        multiplier: 1.2
+  
+  # 友军不互伤规则
+  friendly-fire:
+    # 关闭同阵营互伤
+    same-faction-damage: false
+    # 关闭小队互伤
+    squad-damage: false
+    # 误伤警告（友军被击中时发出警告）
+    warning-on-hit: true
+
+# ==================== 地形利用脚本 ====================
+# 主动寻找方块掩体、绕障碍物走位、卡点伏击、不暴露身体射击
+
+terrain-utilization:
+  # 掩体寻找规则
+  cover-seeking:
+    # 掩体类型定义
+    cover-types:
+      # 完全掩体（身体完全隐藏）
+      full-cover:
+        blocks:
+          - "STONE"
+          - "COBBLESTONE"
+          - "BRICK"
+          - "IRON_BLOCK"
+        height: 2.0
+      # 半掩体（只有头部暴露）
+      half-cover:
+        blocks:
+          - "FENCE"
+          - "WALL"
+          - "SLAB"
+        height: 1.5
+      # 轻掩体（身体部分暴露）
+      light-cover:
+        blocks:
+          - "GLASS"
+          - "IRON_BARS"
+          - "DOOR"
+        height: 1.0
+    
+    # 掩体搜索参数
+    search-params:
+      # 搜索半径
+      search-radius: 15
+      # 搜索间隔（tick）
+      search-interval: 40
+      # 掩体评分公式
+      cover-score: "distance_to_target * 0.5 + cover_quality * 0.3 + line_of_sight * 0.2"
+      # 掩体质量阈值
+      min-cover-quality: 0.5
+    
+    # 掩体行为
+    cover-behavior:
+      # 进入掩体速度
+      enter-speed: 1.0
+      # 掩体后射击间隔
+      shoot-from-cover-interval: 30
+      # 掩体后探头时长
+      peek-duration: 15
+  
+  # 绕障碍物走位
+  obstacle-navigation:
+    # 开启绕障碍寻路
+    enabled: true
+    # 绕障碍优先级
+    obstacle-priority: "COVER > FLANK > DIRECT"
+    # 绕障碍最大尝试次数
+    max-attempts: 3
+    # 绕障碍检测半径
+    detection-radius: 10
+    # 绕障碍避让距离
+    avoid-distance: 2.0
+  
+  # 卡点伏击
+    # 开启伏击模式
+    ambush-mode: true
+    # 伏击触发条件
+    ambush-conditions:
+      - "PLAYER_ENTERING_ZONE"
+      - "PLAYER_NO_COVER"
+      - "PLAYER_LOW_HP"
+    # 伏击准备时长（tick）
+    ambush-prepare-duration: 100
+    # 伏击射击精度倍率
+    ambush-accuracy-multiplier: 0.3
+    # 伏击射击频率倍率
+    ambush-fire-rate-multiplier: 2.0
+  
+  # 不暴露身体射击
+  body-exposure:
+    # 最小暴露时间（tick）
+    min-exposure-time: 5
+    # 暴露后立即回掩体
+    auto-return-to-cover: true
+    # 暴露射击间隔
+    exposure-shoot-interval: 20
+    # 暴露风险阈值（超过此风险值立即回掩体）
+    exposure-risk-threshold: 0.7
+
+# ==================== 场景触发脚本 ====================
+# 玩家进入区域触发伏击、听到枪声大范围集结巡逻
+
+scenario-triggers:
+  # 区域触发规则
+  zone-triggers:
+    # 触发区域定义
+    zones:
+      # 禁区触发
+      restricted-zone:
+        # 触发半径
+        radius: 30
+        # 触发条件
+        trigger-condition: "PLAYER_ENTER"
+        # 触发后行为
+        trigger-behavior:
+          # 发送警报
+          send-alert: true
+          # 警报消息
+          alert-message: "&c[警报] 禁区入侵！"
+          # 集结半径内的所有AI
+          rally-ai-in-radius: 50
+          # 集结后攻击模式
+          attack-mode: "AMBUSH"
+          # 集结响应时间（tick）
+          response-time: 60
+      
+      # Boss领地触发
+      boss-territory:
+        radius: 50
+        trigger-condition: "PLAYER_ENTER"
+        trigger-behavior:
+          send-alert: true
+          alert-message: "&4[Boss领地] 你已进入危险区域！"
+          # Boss进入战斗状态
+          boss-enter-combat: true
+          # 警戒AI数量
+          guard-count: 5
+          # 警戒半径
+          guard-radius: 40
+  
+  # 枪声触发规则
+  gunshot-triggers:
+    # 枪声感知半径
+    hearing-radius: 60
+    # 枪声触发条件
+    trigger-condition: "PLAYER_SHOOT"
+    # 触发后行为
+    trigger-behavior:
+      # 枪声方向追踪
+      track-gunshot-direction: true
+      # 枪声后搜索模式
+      search-mode: "CONVERGE"
+      # 搜索速度
+      search-speed: 1.2
+      # 搜索持续时间（tick）
+      search-duration: 120
+      # 多AI集结
+      rally-multiple-ai: true
+      # 集结数量上限
+      rally-max-count: 10
+  
+  # 多目标集结规则
+  rally-rules:
+    # 集结信号类型
+    signal-types:
+      - "GUNSHOT"
+      - "PLAYER_ENTER_ZONE"
+      - "FRIENDLY_HIT"
+      - "BOSS_CALL"
+    # 集结响应半径
+    response-radius: 50
+    # 集结响应延迟（tick）
+    response-delay: 30
+    # 集结目标（枪声位置/玩家位置）
+    rally-target: "EVENT_LOCATION"
+    # 集结后行为
+    post-rally-behavior: "SEARCH_AND_ATTACK"

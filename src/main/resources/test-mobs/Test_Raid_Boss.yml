@@ -1,0 +1,43 @@
+InternalName: Test_Raid_Boss
+DisplayName: '&c攻坚掠夺BOSS'
+EntityType: PILLAGER
+Health: 500
+Damage: 7
+MovementSpeed: 0.26
+KnockbackResistance: 0.5
+
+VisionRange: 70
+LoseTargetRange: 90
+VisionAngle: 130
+VerticalVisionRange: 18
+MustHaveLineOfSight: false
+RememberTargetDuration: 25
+SearchDuration: 20
+ScanTickInterval: 3
+ForgetTargetOnObstruction: false
+
+SoundDetection:
+  Enable: true
+  MaxSoundRange: 90
+  GunshotCoefficient: 2.8
+  SoundRequireLineOfSight: false
+
+Behaviors:
+  - RANGED_ATTACK
+  - TARGET_SEARCH
+TargetConditions:
+  - VISION_DETECTION
+  - SOUND_DETECTION
+  - HURT_BY_TARGET
+
+ChaseRange: 95
+CanChaseOverObstacles: true
+
+Metadata:
+  - Key: elitemobs
+    Value: true
+  - Key: tarkov_tier
+    Value: boss
+
+TarkovTier: boss
+TarkovPersonality: CAPTAIN

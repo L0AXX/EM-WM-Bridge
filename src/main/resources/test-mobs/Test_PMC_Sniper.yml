@@ -1,0 +1,43 @@
+InternalName: Test_PMC_Sniper
+DisplayName: '&9远距离狙击PMC'
+EntityType: SKELETON
+Health: 90
+Damage: 6
+MovementSpeed: 0.18
+KnockbackResistance: 0.15
+
+VisionRange: 80
+LoseTargetRange: 100
+VisionAngle: 100
+VerticalVisionRange: 20
+MustHaveLineOfSight: false
+RememberTargetDuration: 20
+SearchDuration: 15
+ScanTickInterval: 4
+ForgetTargetOnObstruction: false
+
+SoundDetection:
+  Enable: true
+  MaxSoundRange: 100
+  GunshotCoefficient: 2.5
+  SoundRequireLineOfSight: false
+
+Behaviors:
+  - RANGED_ATTACK
+  - TARGET_SEARCH
+TargetConditions:
+  - VISION_DETECTION
+  - SOUND_DETECTION
+  - HURT_BY_TARGET
+
+ChaseRange: 100
+CanChaseOverObstacles: true
+
+Metadata:
+  - Key: elitemobs
+    Value: true
+  - Key: tarkov_tier
+    Value: pmc
+
+TarkovTier: pmc
+TarkovPersonality: FLANKER

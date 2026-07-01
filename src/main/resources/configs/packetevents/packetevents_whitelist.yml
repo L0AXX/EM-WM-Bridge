@@ -1,0 +1,150 @@
+# ==================== PacketEvents 发包白名单配置 ====================
+# 配置路径: plugins/PacketEvents/config.yml
+# 此配置确保 WM、EM、EM-WM-Bridge 的数据包不被屏蔽
+
+# ==================== 发包白名单 ====================
+whitelist:
+  # WeaponMechanics 相关包
+  weaponmechanics:
+    # 枪械射击数据包
+    packets:
+      - "Play.Server.WORLD_EVENT"          # 枪口火焰
+      - "Play.Server.ENTITY_SOUND"         # 枪声音效
+      - "Play.Server.ENTITY_METADATA"      # 换弹动画
+      - "Play.Server.ENTITY_EQUIPMENT"     # 武器装备
+      - "Play.Server.COLLECT_ITEM"         # 弹药拾取
+      - "Play.Server.ENTITY_VELOCITY"      # 后坐力震动
+      - "Play.Server.EXPLOSION"            # 爆炸效果
+      - "Play.Server.PARTICLE"             # 弹道粒子
+    
+    # 发包限流（防止大量怪物同时开火导致TPS暴跌）
+    rate-limit:
+      # 每tick最大发包数
+      max-packets-per-tick: 50
+      # 批量合并阈值
+      batch-threshold: 5
+      # 合并延迟（tick）
+      batch-delay: 2
+  
+  # EliteMobs 相关包
+  elitemobs:
+    packets:
+      - "Play.Server.ENTITY_METADATA"      # Boss血条
+      - "Play.Server.ENTITY_EQUIPMENT"     # Boss装备
+      - "Play.Server.WORLD_EVENT"          # Boss特效
+      - "Play.Server.ENTITY_SOUND"         # Boss音效
+      - "Play.Server.SPAWN_ENTITY"         # Boss生成
+      - "Play.Server.ENTITY_TELEPORT"      # Boss移动
+    
+    rate-limit:
+      max-packets-per-tick: 30
+      batch-threshold: 3
+      batch-delay: 1
+  
+  # EM-WM-Bridge 桥接包
+  emwm-bridge:
+    packets:
+      - "Play.Server.ENTITY_METADATA"      # 怪物状态同步
+      - "Play.Server.ENTITY_EQUIPMENT"     # 武器绑定
+      - "Play.Server.ENTITY_VELOCITY"      # 射击震动
+      - "Play.Server.PARTICLE"             # 弹道粒子
+      - "Play.Server.ENTITY_SOUND"         # 射击音效
+    
+    rate-limit:
+      max-packets-per-tick: 40
+      batch-threshold: 4
+      batch-delay: 2
+
+# ==================== 怪物实体发包渲染规则 ====================
+entity-rendering:
+  # 远距离怪物渲染优化
+  distance-optimization:
+    # 渲染最大距离（格）
+    max-render-distance: 64
+    # 近距离强制渲染
+    force-render-distance: 32
+    # 远距离降级渲染（只渲染位置，不渲染动画）
+    degrade-distance: 48
+    # 降级刷新间隔（tick）
+    degrade-update-interval: 10
+  
+  # 怪物动作同步规则
+  animation-sync:
+    # 举枪动画
+    aim-animation:
+      # 发包类型
+      packet: "ENTITY_METADATA"
+      # 刷新间隔（tick）
+      update-interval: 4
+      # 远距离降级
+      degrade-update: 20
+    
+    # 射击动画
+    shoot-animation:
+      packet: "ENTITY_VELOCITY"
+      update-interval: 2
+      degrade-update: 10
+    
+    # 换弹动画
+    reload-animation:
+      packet: "ENTITY_METADATA"
+      update-interval: 5
+      degrade-update: 30
+    
+    # 投掷动画
+    throw-animation:
+      packet: "ENTITY_VELOCITY"
+      update-interval: 3
+      degrade-update: 15
+
+# ==================== 防屏蔽规则 ====================
+anti-filter:
+  # 防止数据包被其他插件拦截
+  bypass-plugins:
+    - "WeaponMechanics"
+    - "EliteMobs"
+    - "EM-WM-Bridge"
+    - "MechanicsCore"
+    - "PacketEvents"
+  
+  # 优先级设置
+  priority:
+    # 桥接包最高优先级
+    emwm-bridge: HIGHEST
+    # 武器包高优先级
+    weaponmechanics: HIGH
+    # Boss包中高优先级
+    elitemobs: NORMAL
+
+# ==================== 性能保护规则 ====================
+performance-protection:
+  # TPS 保护阈值
+  tps-thresholds:
+    # TPS<18 时启用限流
+    throttle-tps: 18
+    # TPS<15 时启用降级
+    degrade-tps: 15
+    # TPS<12 时暂停非关键包
+    pause-tps: 12
+  
+  # 限流规则
+  throttle:
+    # 射击包限流比例
+    shoot-packet-ratio: 0.5
+    # 动画包限流比例
+    animation-packet-ratio: 0.3
+    # 特效包限流比例
+    effect-packet-ratio: 0.2
+  
+  # 降级规则
+  degradation:
+    # 降级时保留的关键包
+    critical-packets:
+      - "ENTITY_POSITION"
+      - "ENTITY_VELOCITY"
+      - "ENTITY_METADATA"
+    # 降级时丢弃的非关键包
+    discard-packets:
+      - "PARTICLE"
+      - "WORLD_EVENT"
+      - "ENTITY_SOUND"

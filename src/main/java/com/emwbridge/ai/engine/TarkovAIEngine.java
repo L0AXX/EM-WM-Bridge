@@ -1,0 +1,629 @@
+package com.emwbridge.ai.engine;
+
+import com.emwbridge.EMWMBridge;
+import com.emwbridge.ai.combat.AimConvergenceManager;
+import com.emwbridge.ai.combat.CoverMovement;
+import com.emwbridge.ai.combat.TarkovTactics;
+import com.emwbridge.ai.combat.ThrowableManager;
+import com.emwbridge.ai.events.AIEventDispatcher;
+import com.emwbridge.ai.faction.FactionManager;
+import com.emwbridge.ai.perception.AIVisionManager;
+import com.emwbridge.ai.perception.AlertStage;
+import com.emwbridge.ai.perception.AuditoryPerception;
+import com.emwbridge.ai.personality.PersonalityManager;
+import com.emwbridge.ai.sound.SoundEventManager;
+import com.emwbridge.ai.squad.SquadManager;
+import com.emwbridge.managers.ExtremeEventManager;
+import com.emwbridge.managers.MobWeaponManager;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Mob;
+import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitTask;
+
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class TarkovAIEngine {
+
+    private final EMWMBridge plugin;
+    private final MobWeaponManager weaponManager;
+    private final ExtremeEventManager extremeEventManager;
+
+    private final AIVisionManager aiVisionManager;
+    private final AIEventDispatcher eventDispatcher;
+    private final FactionManager factionManager;
+    private final PersonalityManager personalityManager;
+    private final SquadManager squadManager;
+    private final AimConvergenceManager aimConvergenceManager;
+    private final TarkovTactics tactics;
+    private final CoverMovement coverMovement;
+    private final SoundEventManager soundEventManager;
+    private final ThrowableManager throwableManager;
+
+    private final Map<UUID, AIState> activeMobs = new ConcurrentHashMap<>();
+    private Object schedulerTask;
+    private int aiTickRate = 4;
+    private int tickCounter = 0;
+    private int farDistanceThreshold = 40;
+    private boolean standAndShoot = true;
+    private double hipfireRange = 15.0;
+    private double repositionBetweenBursts = 0.35;
+
+    private int searchDurationTicks = 240;
+    private double meleeDistanceThreshold = 5.0;
+    private int patrolMinRadius = 8;
+    private int patrolMaxRadius = 20;
+    private double patrolNewPointChance = 0.02;
+    private int patrolStayMinTicks = 60;
+    private int patrolStayMaxTicks = 120;
+
+    private boolean useEMEventDriven = false;
+
+    public TarkovAIEngine(EMWMBridge plugin, MobWeaponManager weaponManager,
+                          ExtremeEventManager extremeEventManager) {
+        this.plugin = plugin;
+        this.weaponManager = weaponManager;
+        this.extremeEventManager = extremeEventManager;
+
+        this.eventDispatcher = new AIEventDispatcher();
+        AuditoryPerception auditory = new AuditoryPerception();
+        this.aiVisionManager = new AIVisionManager(plugin, auditory, eventDispatcher);
+
+        this.factionManager = new FactionManager();
+        this.personalityManager = new PersonalityManager(plugin);
+        this.squadManager = new SquadManager(plugin);
+        this.aimConvergenceManager = new AimConvergenceManager(plugin);
+        this.tactics = new TarkovTactics(plugin, weaponManager);
+        this.coverMovement = new CoverMovement();
+        this.soundEventManager = new SoundEventManager(plugin, aiVisionManager);
+        this.throwableManager = new ThrowableManager(plugin);
+
+        eventDispatcher.register(AIEventDispatcher.EventType.SIGHT, event -> {
+            squadManager.shareIntel(event.aiEntityUuid(), Bukkit.getPlayer(event.targetPlayerUuid()));
+        });
+        eventDispatcher.register(AIEventDispatcher.EventType.SOUND, event -> {
+            squadManager.shareSoundIntel(event.aiEntityUuid(), event.location(), event.value());
+        });
+        eventDispatcher.register(AIEventDispatcher.EventType.FLASH_BLIND, event -> {
+            var squad = squadManager.getSquad(event.aiEntityUuid());
+            if (squad != null) {
+                for (UUID memberUuid : squad) {
+                    if (memberUuid.equals(event.aiEntityUuid())) continue;
+                    LivingEntity member = (LivingEntity) Bukkit.getEntity(memberUuid);
+                    if (member != null && member.isValid()) {
+                        aiVisionManager.flashBlind(member);
+                    }
+                }
+            }
+        });
+    }
+
+    public void start() {
+        reloadConfig();
+        soundEventManager.registerEvents();
+
+        if (useEMEventDriven) {
+            plugin.getLogger().info("TarkovAIEngine 已启动 (EliteMobs事件驱动模式)");
+        } else {
+            startScheduler();
+            plugin.getLogger().info("TarkovAIEngine 已启动 (独立AI模式), AI tick=" + aiTickRate);
+        }
+    }
+
+    public void stop() {
+        if (schedulerTask != null) {
+            try {
+                if (schedulerTask instanceof BukkitTask bt) bt.cancel();
+                else schedulerTask.getClass().getMethod("cancel").invoke(schedulerTask);
+            } catch (Exception ignored) {}
+            schedulerTask = null;
+        }
+    }
+
+    private void reloadConfig() {
+        var config = plugin.getConfig();
+        aiTickRate = config.getInt("settings.ai-tick-rate", 4);
+        farDistanceThreshold = config.getInt("settings.far-distance-threshold", 40);
+        standAndShoot = config.getBoolean("tactical.stand-and-shoot", true);
+        hipfireRange = config.getDouble("tactical.hipfire-range", 15.0);
+        repositionBetweenBursts = config.getDouble("tactical.reposition-between-bursts", 0.35);
+
+        searchDurationTicks = config.getInt("settings.search.duration-ticks", 120);
+        meleeDistanceThreshold = config.getDouble("settings.melee.distance-threshold", 5.0);
+        patrolMinRadius = config.getInt("settings.patrol.min-radius", 8);
+        patrolMaxRadius = config.getInt("settings.patrol.max-radius", 20);
+        patrolNewPointChance = config.getDouble("settings.patrol.new-point-chance", 0.02);
+
+        useEMEventDriven = config.getBoolean("settings.use-elitemobs-events", false);
+
+        String stayTicks = config.getString("settings.patrol.stay-ticks", "60-120");
+        parseStayTicks(stayTicks);
+        aiVisionManager.reload(config);
+        personalityManager.reload(config);
+        squadManager.reload(config);
+        aimConvergenceManager.reload(config);
+        tactics.reload(config);
+        throwableManager.reload(config);
+        coverMovement.reload(config.getBoolean("tactical.restrict-movement", true));
+        coverMovement.reloadAdvanced(
+                config.getDouble("tactical.flank.radius", 15.0),
+                config.getDouble("tactical.retreat.distance", 25.0));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void startScheduler() {
+        Runnable task = () -> {
+            tickCounter++;
+            for (Iterator<Map.Entry<UUID, AIState>> it = activeMobs.entrySet().iterator(); it.hasNext();) {
+                Map.Entry<UUID, AIState> entry = it.next();
+                UUID uuid = entry.getKey();
+                AIState state = entry.getValue();
+                LivingEntity entity = (LivingEntity) Bukkit.getEntity(uuid);
+                if (entity == null || !entity.isValid() || entity.isDead()) {
+                    cleanupMob(uuid);
+                    it.remove();
+                    continue;
+                }
+                tickEntity(entity, state);
+            }
+        };
+
+        if (plugin.isFolia()) {
+            try {
+                Object server = Class.forName("io.papermc.paper.threadedregions.RegionizedServer")
+                        .getMethod("getInstance").invoke(null);
+                Object globalScheduler = server.getClass().getMethod("getGlobalScheduler").invoke(server);
+                schedulerTask = globalScheduler.getClass().getMethod("runAtFixedRate",
+                        org.bukkit.plugin.Plugin.class,
+                        java.util.function.Consumer.class,
+                        long.class, long.class)
+                        .invoke(globalScheduler, plugin,
+                                (java.util.function.Consumer<Object>) t -> task.run(),
+                                20L, (long) aiTickRate);
+            } catch (Exception e) {
+                schedulerTask = Bukkit.getScheduler().runTaskTimer(plugin, task, 20L, aiTickRate);
+            }
+        } else {
+            schedulerTask = Bukkit.getScheduler().runTaskTimer(plugin, task, 20L, aiTickRate);
+        }
+    }
+
+    private void cleanupMob(UUID uuid) {
+        aiVisionManager.unregisterMob(uuid);
+        aimConvergenceManager.unregisterMob(uuid);
+        tactics.unregisterMob(uuid);
+        throwableManager.unregisterMob(uuid);
+        personalityManager.removeEntity(uuid);
+        factionManager.removeEntity(uuid);
+        squadManager.removeEntity(uuid);
+    }
+
+    private void tickEntity(LivingEntity entity, AIState state) {
+        if (entity instanceof Mob mob) {
+            if (state.target == null) {
+                mob.setTarget(null);
+            } else {
+                double dist = entity.getLocation().distance(state.target.getLocation());
+                if (dist >= meleeDistanceThreshold) {
+                    mob.setTarget(null);
+                }
+            }
+        }
+
+        UUID uuid = entity.getUniqueId();
+        var personality = personalityManager.getPersonality(uuid);
+        double hpRatio = entity.getHealth() / entity.getMaxHealth();
+
+        double tierVisionRange = plugin.getConfig().getDouble("tier-settings." + state.tier + ".vision-range", 50.0);
+        aiVisionManager.getVisual().setMaxVisionRange(tierVisionRange);
+
+        double tierSoundRange = plugin.getConfig().getDouble("tier-settings." + state.tier + ".sound-range", 60.0);
+
+        List<Player> nearbyPlayers = entity.getWorld().getPlayers().stream()
+                .filter(p -> !p.isDead() && p.isOnline()
+                        && p.getLocation().distance(entity.getLocation()) < Math.max(tierVisionRange, tierSoundRange) + 20)
+                .toList();
+
+        for (Player p : nearbyPlayers) {
+            aiVisionManager.tickExposure(entity, p);
+        }
+
+        UUID primaryUuid = aiVisionManager.getPrimaryTarget(entity.getUniqueId());
+        Player primaryTarget = primaryUuid != null ? Bukkit.getPlayer(primaryUuid) : null;
+
+        if (primaryTarget == null) {
+            UUID hatredTargetUuid = AlertStage.getHatredTarget(entity.getUniqueId());
+            if (hatredTargetUuid != null) {
+                Player hatredTarget = Bukkit.getPlayer(hatredTargetUuid);
+                if (hatredTarget != null && hatredTarget.isOnline() && !hatredTarget.isDead()) {
+                    primaryTarget = hatredTarget;
+                    primaryUuid = hatredTargetUuid;
+                }
+            }
+        }
+
+        if (primaryTarget == null) {
+            if (state.target != null) {
+                state.lastKnownLocation = state.target.getLocation().clone();
+                state.searchTicks = searchDurationTicks;
+            }
+            handleNoTargetState(entity, state);
+            state.target = null;
+            return;
+        }
+
+        state.target = primaryTarget;
+        double distance = entity.getLocation().distance(primaryTarget.getLocation());
+
+        AlertStage alert = aiVisionManager.getAlertStage(uuid, primaryTarget.getUniqueId());
+
+        state.ticksSinceEngage++;
+
+        var rel = factionManager.getRelation(entity, primaryTarget);
+        if (rel == com.emwbridge.ai.faction.HostilityMatrix.Relation.NEUTRAL) {
+            if (factionManager.shouldTurnHostile(entity, primaryTarget)) {
+                rel = com.emwbridge.ai.faction.HostilityMatrix.Relation.HOSTILE;
+            }
+        }
+        if (rel == com.emwbridge.ai.faction.HostilityMatrix.Relation.FRIENDLY) return;
+        if (rel == com.emwbridge.ai.faction.HostilityMatrix.Relation.NEUTRAL) return;
+
+        if (alert == null) return;
+
+        if (state.ticksSinceEngage == 1) {
+            tactics.resetFlashUsed(uuid);
+        }
+
+        squadManager.shareIntel(uuid, primaryTarget);
+
+        double exposure = aiVisionManager.getExposure(uuid, primaryTarget.getUniqueId());
+        com.emwbridge.ai.AIDecision decision = personalityManager.decide(uuid, hpRatio, exposure);
+
+        boolean hasEyeLOS = entity.hasLineOfSight(primaryTarget) && entity.hasLineOfSight(primaryTarget.getEyeLocation());
+        boolean hasBodyLOS = entity.hasLineOfSight(primaryTarget);
+
+        boolean targetBehindCover = !hasBodyLOS;
+        boolean isOpenArea = isOpenArea(entity);
+        int nearbyEnemyCount = countNearbyEnemies(entity, primaryTarget, 10);
+
+        TarkovTactics.TacticalAction tacticalAction = tactics.decideTacticalAction(
+                uuid, hpRatio, targetBehindCover, nearbyEnemyCount, distance, isOpenArea, state.ticksSinceEngage);
+
+        double baseSpread = weaponManager.getBaseSpread(entity);
+        AimConvergenceManager.AimResult aim = aimConvergenceManager.update(entity, primaryTarget, hasEyeLOS, hasBodyLOS, baseSpread);
+
+        if (tactics.isSuppressing(uuid)) {
+            aim = new AimConvergenceManager.AimResult(aim.aimPoint,
+                    aim.spreadRadius * tactics.getSuppressionSpreadMultiplier());
+        }
+
+        executeTacticalAction(entity, primaryTarget, uuid, hpRatio, distance, exposure,
+                hasEyeLOS, hasBodyLOS, decision, aim, tacticalAction, personality);
+
+        if (!coverMovement.isBehindCover(entity, primaryTarget) && isOpenArea(entity)) {
+            if (hpRatio < 0.7 && Math.random() < 0.15) {
+                coverMovement.moveToNearestCover(entity, primaryTarget, 10);
+                plugin.debug("[AI] " + entity.getName() + " 寻找掩体!");
+            }
+        }
+    }
+
+    private void executeTacticalAction(LivingEntity entity, Player target, UUID uuid,
+                                       double hpRatio, double distance, double exposure,
+                                       boolean hasEyeLOS, boolean hasBodyLOS,
+                                       com.emwbridge.ai.AIDecision decision, AimConvergenceManager.AimResult aim,
+                                       TarkovTactics.TacticalAction action,
+                                       com.emwbridge.ai.personality.PersonalityType personality) {
+
+        switch (action) {
+            case THROW_FRAG -> {
+                if (throwableManager.throwFrag(entity, target)) {
+                    plugin.debug("[AI] " + entity.getName() + " 投掷破片雷! dist=" + String.format("%.1f", distance));
+                }
+            }
+            case THROW_FLASH -> {
+                if (throwableManager.throwFlash(entity, target)) {
+                    plugin.debug("[AI] " + entity.getName() + " 投掷闪光弹! dist=" + String.format("%.1f", distance));
+                    flashNearbyAI(target.getLocation(), 8.0);
+                }
+            }
+            case THROW_SMOKE -> {
+                Location smokeLoc = entity.getLocation().clone().add(
+                        target.getLocation().toVector()
+                                .subtract(entity.getLocation().toVector())
+                                .normalize().multiply(distance * 0.5));
+                if (throwableManager.throwSmoke(entity, smokeLoc)) {
+                    plugin.debug("[AI] " + entity.getName() + " 投掷烟雾弹! dist=" + String.format("%.1f", distance));
+                }
+            }
+            case FLANK -> {
+                AIState state = activeMobs.get(uuid);
+                double progress = state != null ? Math.min(1.0, state.ticksSinceEngage / 400.0) : 0.5;
+                coverMovement.moveFlanking(entity, target, progress);
+            }
+            case RETREAT -> {
+                coverMovement.retreatTowardCover(entity, target);
+                if (hasBodyLOS && Math.random() < 0.3 && tactics.shouldShoot(uuid, hpRatio, exposure)) {
+                    if (weaponManager.shoot(entity, aim.aimPoint, distance > hipfireRange)) {
+                        tactics.recordShot(uuid);
+                    }
+                }
+            }
+            case RUSH -> {
+                coverMovement.rushToward(entity, target);
+                if (hasBodyLOS && tactics.shouldShoot(uuid, hpRatio, exposure)) {
+                    if (weaponManager.shoot(entity, aim.aimPoint, true)) {
+                        tactics.recordShot(uuid);
+                    }
+                }
+            }
+            case HOLD -> {
+                if (distance < meleeDistanceThreshold && hasBodyLOS) {
+                    if (weaponManager.shoot(entity, target.getEyeLocation(), false)) {
+                        tactics.recordShot(uuid);
+                        plugin.debug("[AI] " + entity.getName() + " 近战射击! dist=" + String.format("%.1f", distance));
+                    } else if (entity instanceof Mob mob) {
+                        mob.setTarget(target);
+                        plugin.debug("[AI] " + entity.getName() + " 原版近战! dist=" + String.format("%.1f", distance));
+                    }
+                    break;
+                }
+
+                if (decision == com.emwbridge.ai.AIDecision.ENGAGE || decision == com.emwbridge.ai.AIDecision.DEFEND) {
+                    if (standAndShoot) {
+                        coverMovement.standAndAim(entity, target);
+                    }
+
+                    var currentAlert = aiVisionManager.getAlertStage(uuid, target.getUniqueId());
+                    if ((currentAlert == AlertStage.ORANGE || currentAlert == AlertStage.RED)
+                            && hpRatio > 0.5 && !hasBodyLOS && hasEyeLOS) {
+                        if (!tactics.isSuppressing(uuid)) {
+                            tactics.enterSuppress(uuid);
+                            plugin.debug("[AI] " + entity.getName() + " 开始压制射击!");
+                        }
+                    } else if (tactics.isSuppressing(uuid) && (hasBodyLOS || hpRatio < 0.3)) {
+                        tactics.exitSuppress(uuid);
+                    }
+
+                    boolean canShoot = weaponManager.hasWeapon(entity) && hasBodyLOS && tactics.shouldShoot(uuid, hpRatio, exposure);
+                    if (canShoot) {
+                        double shootChance = personality.aggressiveness * 0.8;
+                        if (currentAlert == AlertStage.RED) shootChance *= 1.5;
+                        if (currentAlert == AlertStage.ORANGE) shootChance *= 1.2;
+                        if (tactics.isSuppressing(uuid)) shootChance = 0.6;
+                        if (Math.random() < shootChance) {
+                            if (weaponManager.shoot(entity, aim.aimPoint, distance > hipfireRange)) {
+                                tactics.recordShot(uuid);
+                                plugin.debug("[AI] " + entity.getName() + " 射击! decision=" + decision
+                                        + " dist=" + String.format("%.1f", distance)
+                                        + " burst=" + tactics.getBurstCount(uuid)
+                                        + " action=" + action);
+                            } else {
+                                if (!weaponManager.isReloading(entity) && weaponManager.isMagazineEmpty(entity)) {
+                                    weaponManager.reload(entity);
+                                }
+                            }
+                        }
+                    }
+                    if (Math.random() < repositionBetweenBursts) {
+                        coverMovement.repositionAfterBurst(entity, target);
+                    }
+                } else if (decision == com.emwbridge.ai.AIDecision.AMBUSH) {
+                    coverMovement.stopMoving(entity);
+                    if (weaponManager.hasWeapon(entity) && hasEyeLOS && distance < 25
+                            && tactics.shouldShoot(uuid, hpRatio, exposure)) {
+                        if (weaponManager.shoot(entity, aim.aimPoint, true)) {
+                            tactics.recordShot(uuid);
+                            plugin.debug("[AI] " + entity.getName() + " 伏击射击! dist=" + String.format("%.1f", distance));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void handleNoTargetState(LivingEntity entity, AIState state) {
+        UUID uuid = entity.getUniqueId();
+
+        if (state.searchTicks > 0) {
+            executeSearchState(entity, state);
+            return;
+        }
+
+        UUID hatredTargetUuid = AlertStage.getHatredTarget(uuid);
+        if (hatredTargetUuid != null) {
+            Player hatredTarget = Bukkit.getPlayer(hatredTargetUuid);
+            if (hatredTarget != null && hatredTarget.isOnline() && !hatredTarget.isDead()) {
+                Location lastPos = AlertStage.getHatredLastPosition(uuid);
+                if (lastPos != null) {
+                    double dist = entity.getLocation().distance(lastPos);
+                    if (dist > 3) {
+                        moveToward(entity, lastPos);
+                    }
+                    return;
+                }
+            }
+        }
+
+        executePatrolState(entity, state);
+    }
+
+    private void executeSearchState(LivingEntity entity, AIState state) {
+        state.searchTicks--;
+
+        if (state.lastKnownLocation != null) {
+            double dist = entity.getLocation().distance(state.lastKnownLocation);
+            if (dist > 2) {
+                moveToward(entity, state.lastKnownLocation);
+            } else {
+                if (state.searchTicks % 20 == 0) {
+                    double yaw = (Math.random() - 0.5) * 90;
+                    entity.setRotation((float) (entity.getLocation().getYaw() + yaw), entity.getLocation().getPitch());
+                }
+            }
+        }
+
+        if (state.searchTicks <= 0) {
+            state.lastKnownLocation = null;
+        }
+    }
+
+    private void executePatrolState(LivingEntity entity, AIState state) {
+        if (state.patrolTarget == null || state.patrolCooldown > 0) {
+            state.patrolCooldown--;
+            if (state.patrolCooldown <= 0 && Math.random() < patrolNewPointChance) {
+                Location point = generatePatrolPoint(entity);
+                if (point != null) {
+                    state.patrolTarget = point;
+                } else {
+                    state.patrolCooldown = 20;
+                }
+            }
+            return;
+        }
+
+        double dist = entity.getLocation().distance(state.patrolTarget);
+        if (dist > 3) {
+            moveToward(entity, state.patrolTarget);
+        } else {
+            state.patrolTarget = null;
+            state.patrolCooldown = patrolStayMinTicks + (int) (Math.random() * (patrolStayMaxTicks - patrolStayMinTicks));
+        }
+    }
+
+    private void parseStayTicks(String stayTicks) {
+        if (stayTicks.contains("-")) {
+            String[] parts = stayTicks.split("-");
+            try {
+                patrolStayMinTicks = Integer.parseInt(parts[0].trim());
+                patrolStayMaxTicks = Integer.parseInt(parts[1].trim());
+            } catch (Exception e) {
+                plugin.getLogger().warning("无效的 patrol.stay-ticks 配置: " + stayTicks);
+            }
+        } else {
+            try {
+                patrolStayMinTicks = Integer.parseInt(stayTicks.trim());
+                patrolStayMaxTicks = patrolStayMinTicks;
+            } catch (Exception e) {
+                plugin.getLogger().warning("无效的 patrol.stay-ticks 配置: " + stayTicks);
+            }
+        }
+    }
+
+    private Location generatePatrolPoint(LivingEntity entity) {
+        Location current = entity.getLocation();
+        double angle = Math.random() * Math.PI * 2;
+        double radius = patrolMinRadius + Math.random() * (patrolMaxRadius - patrolMinRadius);
+        double x = current.getX() + Math.cos(angle) * radius;
+        double z = current.getZ() + Math.sin(angle) * radius;
+
+        double y = current.getWorld().getHighestBlockYAt((int) x, (int) z);
+        if (y < current.getY() - 3 || y > current.getY() + 10) {
+            y = current.getY();
+        }
+
+        Location target = new Location(current.getWorld(), x, y, z);
+        if (target.getBlock().getType().isSolid()) {
+            target.add(0, 1, 0);
+        }
+        if (target.clone().add(0, 1, 0).getBlock().getType().isSolid()) {
+            return null;
+        }
+
+        return target;
+    }
+
+    private void moveToward(LivingEntity entity, Location target) {
+        if (!(entity instanceof Mob mob)) return;
+        mob.getPathfinder().moveTo(target, 0.8);
+    }
+
+    private boolean isOpenArea(LivingEntity entity) {
+        Location loc = entity.getLocation();
+        int solidCount = 0;
+        for (int dx = -5; dx <= 5; dx += 2) {
+            for (int dz = -5; dz <= 5; dz += 2) {
+                Location check = loc.clone().add(dx, 1, dz);
+                if (check.getBlock().getType().isSolid()) solidCount++;
+            }
+        }
+        return solidCount <= 3;
+    }
+
+    private int countNearbyEnemies(LivingEntity entity, Player primaryTarget, double radius) {
+        Location center = primaryTarget.getLocation();
+        return (int) entity.getWorld().getPlayers().stream()
+                .filter(p -> !p.isDead() && !p.equals(primaryTarget)
+                        && p.getLocation().distance(center) < radius)
+                .count();
+    }
+
+    private void flashNearbyAI(Location center, double radius) {
+        center.getWorld().getEntitiesByClass(LivingEntity.class).stream()
+                .filter(e -> e.hasMetadata("emwm_ai_enabled")
+                        && e.getLocation().distance(center) < radius)
+                .forEach(ai -> aiVisionManager.flashBlind(ai));
+    }
+
+    public void registerMob(LivingEntity entity, String tier) {
+        UUID uuid = entity.getUniqueId();
+        AIState state = new AIState(tier);
+        state.patrolCooldown = patrolStayMinTicks + (int) (Math.random() * (patrolStayMaxTicks - patrolStayMinTicks));
+        activeMobs.put(uuid, state);
+        aiVisionManager.registerMob(uuid);
+        factionManager.assignByTier(uuid, tier);
+        var personality = personalityManager.rollByTier(tier);
+        personalityManager.assignPersonality(uuid, personality);
+        squadManager.tryJoin(entity, tier, personality);
+        aimConvergenceManager.registerMob(uuid);
+        tactics.registerMob(uuid);
+        throwableManager.registerMob(uuid);
+        entity.setMetadata("emwm_ai_enabled", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
+    }
+
+    public void unregisterMob(LivingEntity entity) {
+        UUID uuid = entity.getUniqueId();
+        activeMobs.remove(uuid);
+        cleanupMob(uuid);
+        entity.removeMetadata("emwm_ai_enabled", plugin);
+    }
+
+    public boolean isActive(LivingEntity entity) {
+        return activeMobs.containsKey(entity.getUniqueId());
+    }
+
+    public int getActiveCount() {
+        return activeMobs.size();
+    }
+
+    public AIVisionManager getAIVisionManager() { return aiVisionManager; }
+    public FactionManager getFactionManager() { return factionManager; }
+    public SquadManager getSquadManager() { return squadManager; }
+    public SoundEventManager getSoundEventManager() { return soundEventManager; }
+
+    public void shutdown() {
+        stop();
+        activeMobs.clear();
+        soundEventManager.shutdown();
+    }
+
+    public boolean isUseEMEventDriven() {
+        return useEMEventDriven;
+    }
+
+    public static class AIState {
+        public String tier;
+        public Player target;
+        public int ticksSinceEngage;
+        public int searchTicks;
+        public Location lastKnownLocation;
+        public Location patrolTarget;
+        public int patrolCooldown;
+
+        public AIState(String tier) {
+            this.tier = tier;
+        }
+    }
+}
