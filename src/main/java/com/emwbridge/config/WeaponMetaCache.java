@@ -89,7 +89,13 @@ public class WeaponMetaCache {
                 return;
             }
 
-            var config = WeaponMechanics.getInstance().getWeaponConfigurations();
+            WeaponMechanics wm = WeaponMechanics.getInstance();
+            if (wm == null) {
+                plugin.debug("[WeaponMetaCache] WeaponMechanics 未就绪，延迟加载: " + weaponId);
+                pendingWeaponIds.add(weaponId);
+                return;
+            }
+            var config = wm.getWeaponConfigurations();
             NativeWeaponData data = new NativeWeaponData(weaponId);
             data.weaponType = "GUN";
 

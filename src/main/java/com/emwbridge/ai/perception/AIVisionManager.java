@@ -76,6 +76,8 @@ public class AIVisionManager {
         // 视觉曝光增量
         double increment = visual.calculate(ai, target, baseRate);
         if (increment > 0) {
+            // 玩家朝向修正：背对AI时更难被发现
+            increment *= visual.getTargetFacingMultiplier(target, ai.getEyeLocation());
             data.addExposure(increment);
             data.updatePosition(target.getLocation());
             // 广播 SIGHT 事件 — 小队情报共享
@@ -98,8 +100,13 @@ public class AIVisionManager {
         } else if (newStage != oldStage) {
             aiAlerts.put(playerUuid, newStage);
             if (newStage == AlertStage.RED && oldStage != AlertStage.RED) {
-                AlertStage.recordHatred(aiUuid, playerUuid, target.getLocation(), Bukkit.getCurrentTick());
-                eventDispatcher.hostileLock(aiUuid, playerUuid, target.getLocation());
+                // 投影仇恨位置到AI实体地面高度，避免记录空中坐标
+                Location hatredLoc = target.getLocation().clone();
+                if (hatredLoc.getY() - ai.getLocation().getY() > 3) {
+                    hatredLoc.setY(ai.getLocation().getY());
+                }
+                AlertStage.recordHatred(aiUuid, playerUuid, hatredLoc, Bukkit.getCurrentTick());
+                eventDispatcher.hostileLock(aiUuid, playerUuid, hatredLoc);
             } else if (newStage != AlertStage.RED && oldStage == AlertStage.RED) {
                 AlertStage.clearHatred(aiUuid);
             }
@@ -235,6 +242,16 @@ public class AIVisionManager {
     /** 获取AI对某玩家的活跃曝光数据Map（用于遍历） */
     public Map<UUID, ExposureData> getExposures(UUID aiUuid) {
         return exposureCache.get(aiUuid);
+    }
+
+    /** 快速衰减特定目标的暴露值（用于不可达目标，衰减速度5倍） */
+    public void fastDecayExposure(UUID aiUuid, UUID playerUuid) {
+        Map<UUID, ExposureData> exposures = exposureCache.get(aiUuid);
+        if (exposures == null) return;
+        ExposureData data = exposures.get(playerUuid);
+        if (data != null) {
+            data.decayExposure(exposureDecayRate * 5);
+        }
     }
 
     // ==================== 生命周期 ====================

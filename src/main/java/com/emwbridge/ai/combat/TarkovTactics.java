@@ -38,16 +38,29 @@ public class TarkovTactics {
     private double smokeOnRetreatChance = 0.12;    // 撤退时烟雾概率
     private double smokeOnOpenAreaChance = 0.08;   // 开阔地烟雾概率
 
+    // === 投掷物距离范围 ===
+    private double fragMinDist = 5.0;               // 破片雷最小距离（太近炸到自己）
+    private double fragMaxDist = 25.0;              // 破片雷最大距离（太远扔不到）
+    private double flashMinDist = 3.0;              // 闪光弹最小距离
+    private double flashMaxDist = 15.0;             // 闪光弹最大距离
+
+    // === 最小交战时间（tick）后才开始扔雷 ===
+    private int minEngageTicksBeforeGrenade = 20;
+
+    // === 掩体判定稳定性：连续多少 tick 无 LOS 才算掩体后 ===
+    private int coverConfirmTicks = 3;
+    private final Map<UUID, Integer> behindCoverCounters = new HashMap<>();
+
     // === 压制参数 ===
     private double minHealthForSuppress = 0.3;
     private double suppressionSpreadMultiplier = 2.5;
 
     // === 战术决策参数 ===
-    private int flankAfterTicks = 200;             // 对峙多少tick后尝试侧翼
-    private double flankChance = 0.15;             // 每tick侧翼概率
-    private double retreatHpThreshold = 0.25;      // 血量低于此撤退
-    private double rushHpThreshold = 0.7;          // 血量高于此 + 距离近 → 冲锋
-    private double rushDistThreshold = 12.0;       // 冲锋触发距离
+    private int flankAfterTicks = 200;
+    private double flankChance = 0.15;
+    private double retreatHpThreshold = 0.25;
+    private double rushHpThreshold = 0.7;
+    private double rushDistThreshold = 12.0;
 
     public TarkovTactics(EMWMBridge plugin, MobWeaponManager weaponManager) {
         this.plugin = plugin;
@@ -65,6 +78,13 @@ public class TarkovTactics {
         smokeOnRetreatChance = config.getDouble("tactics.throwable.smoke-on-retreat-chance", 0.12);
         smokeOnOpenAreaChance = config.getDouble("tactics.throwable.smoke-on-open-area-chance", 0.08);
 
+        fragMinDist = config.getDouble("tactics.throwable.frag-min-dist", 5.0);
+        fragMaxDist = config.getDouble("tactics.throwable.frag-max-dist", 25.0);
+        flashMinDist = config.getDouble("tactics.throwable.flash-min-dist", 3.0);
+        flashMaxDist = config.getDouble("tactics.throwable.flash-max-dist", 15.0);
+        minEngageTicksBeforeGrenade = config.getInt("tactics.throwable.min-engage-ticks", 20);
+        coverConfirmTicks = config.getInt("tactics.throwable.cover-confirm-ticks", 3);
+
         minHealthForSuppress = config.getDouble("tactics.suppression.min-health", 0.3);
         suppressionSpreadMultiplier = config.getDouble("tactics.suppression.spread-multiplier", 2.5);
 
@@ -75,7 +95,9 @@ public class TarkovTactics {
         rushDistThreshold = config.getDouble("tactics.rush.dist-threshold", 12.0);
 
         plugin.debug("[战术] 投掷物决策=" + fragOnCoverChance + "/" + flashBeforeRushChance
-                + "/" + smokeOnRetreatChance + " 侧翼=" + flankAfterTicks + "tick");
+                + "/" + smokeOnRetreatChance + " 侧翼=" + flankAfterTicks + "tick"
+                + " 雷距=" + fragMinDist + "-" + fragMaxDist
+                + " 掩体确认=" + coverConfirmTicks + "tick");
     }
 
     // ==================== 生命周期 ====================
@@ -86,6 +108,7 @@ public class TarkovTactics {
 
     public void unregisterMob(UUID uuid) {
         states.remove(uuid);
+        behindCoverCounters.remove(uuid);
     }
 
     public TacticalState getState(UUID uuid) {
@@ -171,51 +194,105 @@ public class TarkovTactics {
     /**
      * 综合战术决策 — 返回本 tick 应执行的战术动作
      */
-    public TacticalAction decideTacticalAction(UUID uuid, double hpRatio, boolean targetBehindCover,
+    public TacticalAction decideTacticalAction(UUID uuid, double hpRatio, boolean targetBehindCoverNow,
                                                 int nearbyEnemyCount, double distance, boolean isOpenArea,
-                                                int ticksSinceEngage) {
+                                                int ticksSinceEngage, String tier) {
         TacticalState s = getState(uuid);
         s.ticksSinceEngage = ticksSinceEngage;
 
-        // 低血量 → 撤退 + 烟雾
-        if (hpRatio < retreatHpThreshold) {
-            if (Math.random() < smokeOnRetreatChance && !s.fallbackSmokeUsed) {
+        // === 稳定的掩体判定 ===
+        // 使用计数器：必须连续 N tick 检测到 behindCover 才算
+        int counter = behindCoverCounters.getOrDefault(uuid, 0);
+        if (targetBehindCoverNow) {
+            counter = Math.min(counter + 1, coverConfirmTicks + 5);
+        } else {
+            counter = 0;
+        }
+        behindCoverCounters.put(uuid, counter);
+        boolean targetBehindCover = counter >= coverConfirmTicks;
+
+        // === 投掷物冷却是否还在持续？=== 
+        // 如果 grenadePrep 活跃，强制等待
+        if (s.grenadePrepRemaining > 0) {
+            s.grenadePrepRemaining--;
+            return TacticalAction.HOLD; // 准备中，不射击不移动
+        }
+
+        // 低血量 → 撤退 + 烟雾（按 tier 读取撤退血量阈值）
+        double effectiveRetreatHp = plugin.getConfig().getDouble(
+                "tier-settings." + tier + ".tactical-retreat-hp", retreatHpThreshold);
+        if (hpRatio < effectiveRetreatHp) {
+            if (!s.fallbackSmokeUsed && Math.random() < smokeOnRetreatChance
+                    && distance >= fragMinDist && distance <= fragMaxDist) {
                 if (isGrenadeTypeAllowed(uuid, TacticalAction.THROW_SMOKE)) {
                     s.fallbackSmokeUsed = true;
+                    s.grenadePrepRemaining = 10; // 扔后等待
                     return TacticalAction.THROW_SMOKE;
                 }
             }
             return TacticalAction.RETREAT;
         }
 
-        // 高血量 / 距离近 → 闪光 + 冲刺
-        if (hpRatio > rushHpThreshold && distance < rushDistThreshold && !s.flashUsed) {
+        // 高血量 / 距离近 → 闪光 + 准备 + 冲刺
+        if (hpRatio > rushHpThreshold && distance < rushDistThreshold && !s.flashUsed
+                && distance >= flashMinDist && distance <= flashMaxDist
+                && ticksSinceEngage >= minEngageTicksBeforeGrenade) {
             if (Math.random() < flashBeforeRushChance) {
                 if (isGrenadeTypeAllowed(uuid, TacticalAction.THROW_FLASH)) {
                     s.flashUsed = true;
+                    s.grenadePrepRemaining = 30; // 扔闪光后等 30 tick（约 1.5 秒）再冲
                     return TacticalAction.THROW_FLASH;
                 }
             }
-            return TacticalAction.RUSH;
+        }
+
+        // 冲锋 (tier感知 + 掩体/开阔地检查)
+        if (hpRatio > rushHpThreshold) {
+            // 目标在掩体后或开阔地时不冲锋
+            if (targetBehindCover || isOpenArea) {
+                // 不冲锋，让后续逻辑决定动作
+            } else {
+                double tierRushDist = plugin.getConfig().getDouble(
+                        "tier-settings." + tier + ".rush-dist-threshold", rushDistThreshold);
+                if (distance < tierRushDist) {
+                    return TacticalAction.RUSH;
+                }
+            }
+        }
+
+        // 最小交战时间保护：刚接战不要立马扔雷
+        if (ticksSinceEngage < minEngageTicksBeforeGrenade) {
+            return TacticalAction.HOLD;
         }
 
         // 目标掩体后 + 多人扎堆 → 破片雷
-        if (targetBehindCover && nearbyEnemyCount >= 2 && Math.random() < fragOnGroupChance) {
+        if (targetBehindCover && nearbyEnemyCount >= 2 && !s.fragUsed
+                && distance >= fragMinDist && distance <= fragMaxDist
+                && Math.random() < fragOnGroupChance) {
             if (isGrenadeTypeAllowed(uuid, TacticalAction.THROW_FRAG)) {
+                s.fragUsed = true;
+                s.grenadePrepRemaining = 10;
                 return TacticalAction.THROW_FRAG;
             }
         }
 
-        // 目标掩体后单独 → 破片雷（较低概率）
-        if (targetBehindCover && Math.random() < fragOnCoverChance) {
+        // 目标掩体后单独 → 破片雷（较低概率，且已扔过不再扔）
+        if (targetBehindCover && !s.fragUsed
+                && distance >= fragMinDist && distance <= fragMaxDist
+                && Math.random() < fragOnCoverChance) {
             if (isGrenadeTypeAllowed(uuid, TacticalAction.THROW_FRAG)) {
+                s.fragUsed = true;
+                s.grenadePrepRemaining = 10;
                 return TacticalAction.THROW_FRAG;
             }
         }
 
         // 跨越开阔地 → 烟雾掩护
-        if (isOpenArea && distance > 20 && Math.random() < smokeOnOpenAreaChance) {
+        if (isOpenArea && distance > 20 && !s.fallbackSmokeUsed
+                && Math.random() < smokeOnOpenAreaChance) {
             if (isGrenadeTypeAllowed(uuid, TacticalAction.THROW_SMOKE)) {
+                s.fallbackSmokeUsed = true;
+                s.grenadePrepRemaining = 10;
                 return TacticalAction.THROW_SMOKE;
             }
         }
@@ -291,10 +368,12 @@ public class TarkovTactics {
         return getState(uuid).ticksSinceEngage;
     }
 
-    public void resetFlashUsed(UUID uuid) {
+    public void resetThrowableFlags(UUID uuid) {
         TacticalState s = getState(uuid);
         s.flashUsed = false;
+        s.fragUsed = false;
         s.fallbackSmokeUsed = false;
+        s.grenadePrepRemaining = 0;
     }
 
     // ==================== 战术动作枚举 ====================
@@ -326,6 +405,9 @@ public class TarkovTactics {
         public int ticksSinceEngage;
         // 一次性标记 — 防止在同一交战中反复投掷
         public boolean flashUsed;
+        public boolean fragUsed;
         public boolean fallbackSmokeUsed;
+        // 投掷后准备等待时间 — 闪光弹等爆炸后才行动
+        public int grenadePrepRemaining;
     }
 }

@@ -48,8 +48,18 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.2'
     testImplementation 'org.mockito:mockito-core:5.12.0'
     testImplementation 'org.mockito:mockito-junit-jupiter:5.12.0'
-    
-    // ========== MockBukkit - Bukkit插件测试Harness框架（待集成） ==========
+
+    // ========== MockBukkit - Bukkit插件测试Harness框架 ==========
+    // 注：MockBukkit-v1.21 (3.133.2) 依赖 Paper 1.21.1 API，与项目使用的 Paper 1.21.4 不兼容。
+    // RegistryAccessMock 在 1.21.4 下会 NPE，待 MockBukkit 发布 1.21.4 兼容版本后再集成。
+    // testImplementation 'com.github.seeseemelk:MockBukkit-v1.21:3.133.2'
+
+    // ========== 本地依赖（测试用，提供 WM/EM/MechanicsCore 类定义） ==========
+    testImplementation files(
+        'libs/WeaponMechanics-4.3.0.jar',
+        'libs/MechanicsCore-4.3.0.jar',
+        'libs/EliteMobs.jar'
+    )
 }
 
 test {
@@ -99,4 +109,49 @@ jar {
     archiveBaseName.set('EM-WM-Bridge')
     archiveClassifier.set('')
     archiveVersion.set(project.version.toString())
+}
+
+// ========== 部署到测试服务器 ==========
+// 用法: ./gradlew deploy
+// 将编译产物复制到指定的测试服务器 plugins 目录
+tasks.register('deploy') {
+    group = 'deployment'
+    description = '编译并部署到测试服务器 plugins 目录'
+    dependsOn jar
+    doNotTrackState("目标目录有其他插件的文件，禁止 Gradle 读取状态")
+
+    doLast {
+        def serverPluginsDir = project.findProperty('serverPlugins')
+                ?: 'F:/LOAXX Devlop CLI/GreyZone S_1.21.4JDK21/plugins'
+        def jarFile = layout.buildDirectory.file("libs/EM-WM-Bridge-${project.version}.jar").get().asFile
+
+        copy {
+            from jarFile
+            into serverPluginsDir
+        }
+
+        println "============================================="
+        println "  部署完成: ${serverPluginsDir}"
+        println "  JAR: ${jarFile.name}"
+        println "  准备就绪，可以启动服务器进行测试"
+        println "============================================="
+    }
+}
+
+// ========== 快速部署 + 启动测试 ==========
+// 用法: ./gradlew deployAndTest
+// 编译 → 部署 → 提示启动服务器
+tasks.register('deployAndTest') {
+    group = 'deployment'
+    description = '编译部署并提示启动测试命令'
+    dependsOn deploy
+
+    doLast {
+        println ""
+        println "  真机测试流程:"
+        println "  1. 启动服务器: cd 'F:/LOAXX Devlop CLI/GreyZone S_1.21.4JDK21' && .\\Run.bat"
+        println "  2. 等待服务器启动完成 (看到 'Done' 消息)"
+        println "  3. 运行测试脚本: 在项目根目录执行 .\\test-server.ps1"
+        println ""
+    }
 }

@@ -201,15 +201,9 @@ public class TarkovAIEngine {
     }
 
     private void tickEntity(LivingEntity entity, AIState state) {
+        // 始终清除原生Mob目标，防止原版AI近战攻击（不触发WeaponMechanics死亡消息带枪械名）
         if (entity instanceof Mob mob) {
-            if (state.target == null) {
-                mob.setTarget(null);
-            } else {
-                double dist = entity.getLocation().distance(state.target.getLocation());
-                if (dist >= meleeDistanceThreshold) {
-                    mob.setTarget(null);
-                }
-            }
+            mob.setTarget(null);
         }
 
         UUID uuid = entity.getUniqueId();
@@ -255,9 +249,24 @@ public class TarkovAIEngine {
         }
 
         state.target = primaryTarget;
-        double distance = entity.getLocation().distance(primaryTarget.getLocation());
+        double distance = safeDistance(entity.getLocation(), primaryTarget.getLocation());
 
         AlertStage alert = aiVisionManager.getAlertStage(uuid, primaryTarget.getUniqueId());
+
+        // Y轴不可达检测：目标远高于AI(>6格)且无视线 → 快速衰减，不做交战行为
+        boolean heightUnreachable = primaryTarget.getLocation().getY() - entity.getLocation().getY() > 6
+                && !entity.hasLineOfSight(primaryTarget);
+        if (heightUnreachable && alert != null && alert.isHostile()) {
+            // 还在RED但有视觉丢失+高度不可达 → 快速衰减暴露值
+            aiVisionManager.fastDecayExposure(uuid, primaryTarget.getUniqueId());
+            plugin.debug("[AI] " + entity.getName() + " 目标不可达(太高)，衰减警觉");
+            alert = aiVisionManager.getAlertStage(uuid, primaryTarget.getUniqueId());
+            if (alert == null || !alert.isHostile()) {
+                handleNoTargetState(entity, state);
+                state.target = null;
+                return;
+            }
+        }
 
         state.ticksSinceEngage++;
 
@@ -273,7 +282,7 @@ public class TarkovAIEngine {
         if (alert == null) return;
 
         if (state.ticksSinceEngage == 1) {
-            tactics.resetFlashUsed(uuid);
+            tactics.resetThrowableFlags(uuid);
         }
 
         squadManager.shareIntel(uuid, primaryTarget);
@@ -281,23 +290,21 @@ public class TarkovAIEngine {
         double exposure = aiVisionManager.getExposure(uuid, primaryTarget.getUniqueId());
         com.emwbridge.ai.AIDecision decision = personalityManager.decide(uuid, hpRatio, exposure);
 
-        boolean hasEyeLOS = entity.hasLineOfSight(primaryTarget) && entity.hasLineOfSight(primaryTarget.getEyeLocation());
-        boolean hasBodyLOS = entity.hasLineOfSight(primaryTarget);
+        boolean hasBodyLOS = aiVisionManager.getVisual().hasLineOfSight(entity, primaryTarget);
+        // 眼部LOS：检查头部是否透过透明方块可见
+        boolean hasEyeLOS = aiVisionManager.getVisual().hasHeadLOS(entity, primaryTarget);
 
         boolean targetBehindCover = !hasBodyLOS;
         boolean isOpenArea = isOpenArea(entity);
         int nearbyEnemyCount = countNearbyEnemies(entity, primaryTarget, 10);
 
         TarkovTactics.TacticalAction tacticalAction = tactics.decideTacticalAction(
-                uuid, hpRatio, targetBehindCover, nearbyEnemyCount, distance, isOpenArea, state.ticksSinceEngage);
+                uuid, hpRatio, targetBehindCover, nearbyEnemyCount, distance, isOpenArea, state.ticksSinceEngage, state.tier);
 
-        double baseSpread = weaponManager.getBaseSpread(entity);
-        AimConvergenceManager.AimResult aim = aimConvergenceManager.update(entity, primaryTarget, hasEyeLOS, hasBodyLOS, baseSpread);
-
-        if (tactics.isSuppressing(uuid)) {
-            aim = new AimConvergenceManager.AimResult(aim.aimPoint,
-                    aim.spreadRadius * tactics.getSuppressionSpreadMultiplier());
-        }
+        // WM内部已经处理武器散布，这里只选择瞄点（躯干/头/腿）+ 不可见时偏移
+        AimConvergenceManager.AimResult aim = aimConvergenceManager.update(
+                entity, primaryTarget, hasEyeLOS, hasBodyLOS, distance,
+                state.tier, tactics.isSuppressing(uuid));
 
         executeTacticalAction(entity, primaryTarget, uuid, hpRatio, distance, exposure,
                 hasEyeLOS, hasBodyLOS, decision, aim, tacticalAction, personality);
@@ -344,15 +351,22 @@ public class TarkovAIEngine {
                 coverMovement.moveFlanking(entity, target, progress);
             }
             case RETREAT -> {
+                AIState retreatState = activeMobs.get(uuid);
                 coverMovement.retreatTowardCover(entity, target);
+                plugin.debug("[AI] " + entity.getName() + " 撤退! hpRatio=" + String.format("%.2f", hpRatio)
+                        + " dist=" + String.format("%.1f", distance) + " tier=" + (retreatState != null ? retreatState.tier : "?"));
                 if (hasBodyLOS && Math.random() < 0.3 && tactics.shouldShoot(uuid, hpRatio, exposure)) {
                     if (weaponManager.shoot(entity, aim.aimPoint, distance > hipfireRange)) {
                         tactics.recordShot(uuid);
+                        plugin.debug("[AI] " + entity.getName() + " 撤退中射击! tier=" + (retreatState != null ? retreatState.tier : "?"));
                     }
                 }
             }
             case RUSH -> {
+                AIState rushState = activeMobs.get(uuid);
                 coverMovement.rushToward(entity, target);
+                plugin.debug("[AI] " + entity.getName() + " 冲锋! hpRatio=" + String.format("%.2f", hpRatio)
+                        + " dist=" + String.format("%.1f", distance) + " tier=" + (rushState != null ? rushState.tier : "?"));
                 if (hasBodyLOS && tactics.shouldShoot(uuid, hpRatio, exposure)) {
                     if (weaponManager.shoot(entity, aim.aimPoint, true)) {
                         tactics.recordShot(uuid);
@@ -364,9 +378,6 @@ public class TarkovAIEngine {
                     if (weaponManager.shoot(entity, target.getEyeLocation(), false)) {
                         tactics.recordShot(uuid);
                         plugin.debug("[AI] " + entity.getName() + " 近战射击! dist=" + String.format("%.1f", distance));
-                    } else if (entity instanceof Mob mob) {
-                        mob.setTarget(target);
-                        plugin.debug("[AI] " + entity.getName() + " 原版近战! dist=" + String.format("%.1f", distance));
                     }
                     break;
                 }
@@ -438,9 +449,14 @@ public class TarkovAIEngine {
             if (hatredTarget != null && hatredTarget.isOnline() && !hatredTarget.isDead()) {
                 Location lastPos = AlertStage.getHatredLastPosition(uuid);
                 if (lastPos != null) {
-                    double dist = entity.getLocation().distance(lastPos);
+                    // 投影仇恨位置到实体地面高度，避免追空中坐标
+                    Location groundPos = lastPos.clone();
+                    if (groundPos.getY() - entity.getLocation().getY() > 3) {
+                        groundPos.setY(entity.getLocation().getY());
+                    }
+                    double dist = safeDistance(entity.getLocation(), groundPos);
                     if (dist > 3) {
-                        moveToward(entity, lastPos);
+                        moveToward(entity, groundPos);
                     }
                     return;
                 }
@@ -454,7 +470,7 @@ public class TarkovAIEngine {
         state.searchTicks--;
 
         if (state.lastKnownLocation != null) {
-            double dist = entity.getLocation().distance(state.lastKnownLocation);
+            double dist = safeDistance(entity.getLocation(), state.lastKnownLocation);
             if (dist > 2) {
                 moveToward(entity, state.lastKnownLocation);
             } else {
@@ -484,7 +500,7 @@ public class TarkovAIEngine {
             return;
         }
 
-        double dist = entity.getLocation().distance(state.patrolTarget);
+        double dist = safeDistance(entity.getLocation(), state.patrolTarget);
         if (dist > 3) {
             moveToward(entity, state.patrolTarget);
         } else {
@@ -537,7 +553,12 @@ public class TarkovAIEngine {
 
     private void moveToward(LivingEntity entity, Location target) {
         if (!(entity instanceof Mob mob)) return;
-        mob.getPathfinder().moveTo(target, 0.8);
+        // Y轴防飞：目标比实体高>3格则投影到实体地面高度
+        Location adjusted = target.clone();
+        if (adjusted.getY() - entity.getLocation().getY() > 3) {
+            adjusted.setY(entity.getLocation().getY());
+        }
+        mob.getPathfinder().moveTo(adjusted, 1.0);
     }
 
     private boolean isOpenArea(LivingEntity entity) {
@@ -567,6 +588,16 @@ public class TarkovAIEngine {
                 .forEach(ai -> aiVisionManager.flashBlind(ai));
     }
 
+    /**
+     * 安全距离计算：自动处理跨世界和 null 情况
+     * 不同世界或任意位置为 null 时返回 Double.MAX_VALUE
+     */
+    private double safeDistance(Location a, Location b) {
+        if (a == null || b == null || a.getWorld() == null || b.getWorld() == null) return Double.MAX_VALUE;
+        if (!a.getWorld().equals(b.getWorld())) return Double.MAX_VALUE;
+        return a.distance(b);
+    }
+
     public void registerMob(LivingEntity entity, String tier) {
         UUID uuid = entity.getUniqueId();
         AIState state = new AIState(tier);
@@ -578,6 +609,7 @@ public class TarkovAIEngine {
         personalityManager.assignPersonality(uuid, personality);
         squadManager.tryJoin(entity, tier, personality);
         aimConvergenceManager.registerMob(uuid);
+        aimConvergenceManager.setInitialDelayTicks(uuid, aimConvergenceManager.getInitialDelay(tier));
         tactics.registerMob(uuid);
         throwableManager.registerMob(uuid);
         entity.setMetadata("emwm_ai_enabled", new org.bukkit.metadata.FixedMetadataValue(plugin, true));

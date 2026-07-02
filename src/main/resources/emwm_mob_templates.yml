@@ -1,0 +1,133 @@
+# EM-WM-Bridge 全局兵种模板配置
+# 自动部署到 plugins/EM-WM-Bridge/emwm_mob_templates.yml
+#
+# 用法：
+# 1. 在 EliteMobs 怪物 yml 中添加一行： emwmTemplate: scav_rifle
+# 2. 或者在内联 emwm: 配置段中省略的字段会从此模板继承
+#
+# 模板格式（扁平结构）：
+#   template_name:
+#     weapon: AK_47
+#     maxRange: 38
+#     spread: 0.16
+#     ...
+#
+# 所有字段均可选，省略的字段使用 WM 武器原生参数
+
+templates:
+  # ======================== Scav 兵种模板 ========================
+  scav_rifle:
+    weapon: AK_47
+    fireRateTicks: 6
+    maxRange: 38
+    spread: 0.16
+    damageMultiplier: 0.8
+    recoil: 1.3
+    meleeSwitchHealthPercent: 0.15
+    allowAutoReload: false
+    onlyAimShoot: false
+    enableGrenadeAI: false
+
+  scav_smg:
+    weapon: Uzi
+    fireRateTicks: 3
+    maxRange: 25
+    spread: 0.22
+    damageMultiplier: 0.7
+    recoil: 1.5
+    meleeSwitchHealthPercent: 0.20
+    allowAutoReload: false
+    onlyAimShoot: false
+    enableGrenadeAI: false
+
+  scav_shotgun:
+    weapon: R9_0
+    fireRateTicks: 10
+    maxRange: 20
+    spread: 0.30
+    damageMultiplier: 1.0
+    recoil: 1.8
+    meleeSwitchHealthPercent: 0.25
+    allowAutoReload: false
+    onlyAimShoot: false
+    enableGrenadeAI: false
+
+  # ======================== PMC 兵种模板 ========================
+  pmc_assault:
+    weapon: M4A1
+    fireRateTicks: 3
+    maxRange: 50
+    spread: 0.08
+    damageMultiplier: 1.0
+    recoil: 0.9
+    meleeSwitchHealthPercent: 0.10
+    allowAutoReload: true
+    onlyAimShoot: false
+    enableGrenadeAI: true
+    grenadeThrowRange: 20
+    grenadeCooldown: 120
+    allowedGrenadeTypes:
+    - FRAG
+    - FLASH
+    - SMOKE
+
+  pmc_sniper:
+    weapon: AX_50
+    fireRateTicks: 20
+    maxRange: 80
+    spread: 0.02
+    damageMultiplier: 1.5
+    recoil: 2.0
+    meleeSwitchHealthPercent: 0.05
+    allowAutoReload: false
+    onlyAimShoot: true
+    enableGrenadeAI: false
+
+  # ======================== Boss 兵种模板 ========================
+  boss_heavy:
+    weapon: MG34
+    fireRateTicks: 2
+    maxRange: 45
+    spread: 0.12
+    damageMultiplier: 1.3
+    recoil: 1.5
+    meleeSwitchHealthPercent: 0.05
+    allowAutoReload: true
+    onlyAimShoot: false
+    enableGrenadeAI: true
+    grenadeThrowRange: 25
+    grenadeCooldown: 80
+    allowedGrenadeTypes:
+    - FRAG
+    - FLASH
+    - SMOKE
+
+  boss_elite:
+    weapon: FN_FAL
+    fireRateTicks: 4
+    maxRange: 55
+    spread: 0.05
+    damageMultiplier: 1.5
+    recoil: 1.0
+    meleeSwitchHealthPercent: 0.08
+    allowAutoReload: true
+    onlyAimShoot: false
+    enableGrenadeAI: true
+    grenadeThrowRange: 30
+    grenadeCooldown: 60
+    allowedGrenadeTypes:
+    - FRAG
+    - FLASH
+    - SMOKE
+
+  # ======================== 教徒模板 ========================
+  cultist_knife:
+    weapon: 50_GS
+    fireRateTicks: 10
+    maxRange: 15
+    spread: 0.25
+    damageMultiplier: 1.2
+    meleeSwitchHealthPercent: 0.50
+    allowAutoReload: false
+    onlyAimShoot: false
+    enableGrenadeAI: false

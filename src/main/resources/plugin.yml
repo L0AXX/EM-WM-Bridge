@@ -12,9 +12,7 @@ softdepend:
 commands:
   emwm:
     description: EM-WM-Bridge 主命令
-    usage: /emwm <reload|debug>
-    permission: emwm.admin
-    permission-message: '&c你没有权限执行此命令'
+    usage: /emwm <reload|debug|stats|version|info|track>
 
 permissions:
   emwm.admin:

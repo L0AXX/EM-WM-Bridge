@@ -31,6 +31,7 @@ class TarkovTacticsTest {
         
         weaponManager = mock(MobWeaponManager.class);
         config = mock(FileConfiguration.class);
+        when(plugin.getConfig()).thenReturn(config);
         
         // 默认配置返回值
         when(config.getInt(anyString(), anyInt())).thenAnswer(inv -> inv.getArgument(1));
@@ -171,7 +172,7 @@ class TarkovTacticsTest {
         void decideTacticalActionShouldReturnValidAction() {
             tactics.registerMob(aiUuid);
             TarkovTactics.TacticalAction action = tactics.decideTacticalAction(
-                aiUuid, 0.5, false, 0, 15.0, false, 50);
+                aiUuid, 0.5, false, 0, 15.0, false, 50, "scav");
             
             assertNotNull(action);
             assertTrue(action instanceof TarkovTactics.TacticalAction);
@@ -184,9 +185,9 @@ class TarkovTacticsTest {
             
             // 测试各种场景
             TarkovTactics.TacticalAction action1 = tactics.decideTacticalAction(
-                aiUuid, 0.1, true, 3, 20.0, true, 300);
+                aiUuid, 0.1, true, 3, 20.0, true, 300, "scav");
             TarkovTactics.TacticalAction action2 = tactics.decideTacticalAction(
-                aiUuid, 0.9, false, 0, 5.0, false, 10);
+                aiUuid, 0.9, false, 0, 5.0, false, 10, "scav");
             
             assertNotNull(action1);
             assertNotNull(action2);
@@ -198,13 +199,13 @@ class TarkovTacticsTest {
     class OneTimeMarkerTests {
 
         @Test
-        @DisplayName("resetFlashUsed 应重置闪光和烟雾标记")
-        void resetFlashUsedShouldResetBothMarkers() {
+        @DisplayName("resetThrowableFlags 应重置所有投掷物标记")
+        void resetThrowableFlagsShouldResetAllMarkers() {
             tactics.registerMob(aiUuid);
-            tactics.resetFlashUsed(aiUuid);
+            tactics.resetThrowableFlags(aiUuid);
             
             TarkovTactics.TacticalAction action = tactics.decideTacticalAction(
-                aiUuid, 0.9, false, 0, 8.0, false, 50);
+                aiUuid, 0.9, false, 0, 8.0, false, 50, "scav");
             assertNotNull(action);
         }
     }
@@ -217,7 +218,7 @@ class TarkovTacticsTest {
         @DisplayName("getTicksSinceEngage 应返回正确值")
         void getTicksSinceEngageShouldReturnValue() {
             tactics.registerMob(aiUuid);
-            tactics.decideTacticalAction(aiUuid, 0.5, false, 0, 15.0, false, 150);
+            tactics.decideTacticalAction(aiUuid, 0.5, false, 0, 15.0, false, 150, "scav");
             
             assertEquals(150, tactics.getTicksSinceEngage(aiUuid));
         }

@@ -62,6 +62,11 @@ public class EMWMBridge extends JavaPlugin {
             return;
         }
 
+        // 初始化EMWM配置缓存（必须在 MobWeaponManager 之前，因为其构造函数依赖它）
+        emwmConfigCache = new EMWMConfigCache(this);
+        emwmConfigCache.loadAll();
+        getLogger().info("[EMWM] 配置缓存初始化完成");
+
         // 注册自定义Mechanic和Targeter到MechanicsCore
         EMWMechanics.initialize();
         getLogger().info("已注册EMW自定义Mechanic和Targeter");
@@ -70,11 +75,6 @@ public class EMWMBridge extends JavaPlugin {
         mobWeaponManager = new MobWeaponManager(this);
         extremeEventManager = new ExtremeEventManager(this);
         tarkovAIManager = new TarkovAIManager(this);
-
-        // 初始化EMWM配置缓存
-        emwmConfigCache = new EMWMConfigCache(this);
-        emwmConfigCache.loadAll();
-        getLogger().info("[EMWM] 配置缓存初始化完成");
 
         // 加载配置
         mobWeaponManager.reload();

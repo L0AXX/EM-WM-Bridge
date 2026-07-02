@@ -93,6 +93,16 @@ public class EMWMConfigCache {
      *       ...
      */
     private void loadGlobalTemplates() {
+        // 自动部署内置模板文件（如果用户没有手动创建）
+        try {
+            if (!plugin.getDataFolder().exists()) {
+                plugin.getDataFolder().mkdirs();
+            }
+            plugin.saveResource("emwm_mob_templates.yml", false);
+        } catch (Exception e) {
+            plugin.debug("[EMWMConfigCache] 内置模板文件不存在或已存在: " + e.getMessage());
+        }
+
         File templateFile = new File(plugin.getDataFolder(), "emwm_mob_templates.yml");
         if (!templateFile.exists()) {
             plugin.getLogger().warning("[EMWMConfigCache] 未找到全局模板配置文件，跳过模板加载");

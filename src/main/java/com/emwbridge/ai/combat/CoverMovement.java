@@ -137,18 +137,18 @@ public class CoverMovement {
         Vector flankOffset = toTarget.normalize()
                 .multiply(flankRadius * Math.cos(angle))
                 .add(perp.clone().multiply(flankRadius * Math.sin(angle)));
-        Location flankGoal = targetLoc.clone().add(flankOffset);
+        Location flankGoal = projectToGround(targetLoc.clone().add(flankOffset), entity);
 
         // 设为 goal 并移动
         if (entity instanceof Mob mob) {
             try {
-                mob.getPathfinder().moveTo(flankGoal, 0.8);
+                mob.getPathfinder().moveTo(flankGoal, 1.0);
                 return;
             } catch (Exception ignored) {}
         }
         // 备选：速度向量移动
         Vector moveDir = flankGoal.toVector().subtract(entityLoc.toVector()).normalize();
-        entity.setVelocity(entity.getVelocity().setY(0).add(moveDir.multiply(0.2)));
+        entity.setVelocity(entity.getVelocity().setY(0).add(moveDir.multiply(0.3)));
     }
 
     /**
@@ -206,15 +206,16 @@ public class CoverMovement {
         if (bestCover != null) {
             if (entity instanceof Mob mob) {
                 try {
-                    mob.getPathfinder().moveTo(bestCover, 0.9);
+                    mob.getPathfinder().moveTo(bestCover, 1.0);
                     return;
                 } catch (Exception ignored) {}
             }
             Vector moveDir = bestCover.toVector().subtract(entityLoc.toVector()).normalize();
-            entity.setVelocity(entity.getVelocity().setY(0).add(moveDir.multiply(0.25)));
+            entity.setVelocity(entity.getVelocity().setY(0).add(moveDir.multiply(0.35)));
         } else {
-            // 无掩体可退 → 直接后撤
-            moveAlongLineOfFire(entity, target, 0.05, retreatDistance);
+            // 无掩体可退 → 直接向后冲刺撤退
+            Vector awayDir = entityLoc.toVector().subtract(target.getLocation().toVector()).normalize();
+            entity.setVelocity(entity.getVelocity().setY(0).add(awayDir.multiply(0.35)));
         }
     }
 
@@ -223,9 +224,16 @@ public class CoverMovement {
      */
     public void rushToward(LivingEntity entity, Player target) {
         if (!restrictMovement) return;
-        Vector dir = target.getLocation().toVector()
+        Location groundTarget = projectToGround(target.getLocation(), entity);
+        if (entity instanceof Mob mob) {
+            try {
+                mob.getPathfinder().moveTo(groundTarget, 1.2);
+                return;
+            } catch (Exception ignored) {}
+        }
+        Vector dir = groundTarget.toVector()
                 .subtract(entity.getLocation().toVector()).normalize();
-        entity.setVelocity(entity.getVelocity().setY(0).add(dir.multiply(0.35)));
+        entity.setVelocity(entity.getVelocity().setY(0).add(dir.multiply(0.5)));
     }
 
     /**
@@ -253,11 +261,11 @@ public class CoverMovement {
 
         if (bestCover != null) {
             if (entity instanceof Mob mob) {
-                try { mob.getPathfinder().moveTo(bestCover, 0.8); return; }
+                try { mob.getPathfinder().moveTo(bestCover, 1.0); return; }
                 catch (Exception ignored) {}
             }
             Vector dir = bestCover.toVector().subtract(entityLoc.toVector()).normalize();
-            entity.setVelocity(entity.getVelocity().setY(0).add(dir.multiply(0.2)));
+            entity.setVelocity(entity.getVelocity().setY(0).add(dir.multiply(0.35)));
         }
     }
 
@@ -289,13 +297,25 @@ public class CoverMovement {
     }
 
     public void moveTowards(LivingEntity entity, Location location) {
+        Location groundLoc = projectToGround(location, entity);
         if (entity instanceof Mob mob) {
-            try { mob.getPathfinder().moveTo(location); return; }
+            try { mob.getPathfinder().moveTo(groundLoc); return; }
             catch (Exception ignored) {}
         }
-        Vector dir = location.toVector()
+        Vector dir = groundLoc.toVector()
                 .subtract(entity.getLocation().toVector()).normalize();
-        entity.setVelocity(entity.getVelocity().setY(0).add(dir.multiply(0.15)));
+        entity.setVelocity(entity.getVelocity().setY(0).add(dir.multiply(0.3)));
+    }
+
+    /**
+     * Y轴防飞投影 — 目标位置高于实体>3格时投影到实体地面高度，防止AI追飞天玩家
+     */
+    private static Location projectToGround(Location loc, LivingEntity entity) {
+        Location ground = loc.clone();
+        if (ground.getY() - entity.getLocation().getY() > 3) {
+            ground.setY(entity.getLocation().getY());
+        }
+        return ground;
     }
 
     public void repositionAfterBurst(LivingEntity entity, Player target) {

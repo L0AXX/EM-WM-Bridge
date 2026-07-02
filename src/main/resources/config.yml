@@ -24,7 +24,7 @@ settings:
   # 近战/远程切换配置
   melee:
     # 近战切换距离阈值（格），小于此距离使用近战
-    distance-threshold: 3.0
+    distance-threshold: 2.0
 
   # 巡逻行为配置
   patrol:
@@ -127,6 +127,12 @@ perception:
       side: 0.6    # 侧面
       back: 0.3    # 背后 — 最难看到
 
+    # 玩家朝向倍率 (玩家面对/背对AI时的可见度修正)
+    target-facing:
+      front: 1.0   # 玩家面向AI → 100% 暴露
+      side: 0.6    # 玩家侧对AI
+      back: 0.3    # 玩家背对AI → 最难被发现
+
     # 环境修正 (天气/昼夜)
     environment:
       day-clear: 1.0   # 晴天白天
@@ -228,20 +234,20 @@ personality:
 
 # ==================== 瞄准系统 ====================
 aim:
-  # 爆头窗口 (秒) — 锁定目标后，随收敛时间推进瞄准点从身体中心向头部偏移
-  headshot-window-seconds: 15.0
-  # 散布收敛率 (0-1) — 每秒钟散布缩小的比例，越小收敛越快
-  convergence-rate: 0.85
-  # 最小散布倍率 — 完全收敛后散布不会低于此值
-  min-spread-multiplier: 0.2
-  # 视线丢失后重置时间 (秒) — 丢失目标视野多久后重置收敛
-  vision-loss-reset-seconds: 2.0
-  # 初始延迟 (秒) — 每个tier看到目标后的瞄准启动延迟
+  # 反应时间后瞄准启动延迟 (秒) — 每个tier看到目标后的反应时间
   initial-delay:
     scav: 1.5
     pmc: 0.9
     boss: 0.5
     cultist: 1.2
+  # 瞄准躯干的概率 (剩余概率瞄腿)
+  torso-aim-chance: 0.75
+  # 近距离(<10格)且有视线的爆头概率
+  headshot-chance-close: 0.15
+  # 完全看不见目标时的猜射击偏移半径 (格)
+  blind-aim-drift: 3.0
+  # 瞄准点定位时间（秒）— 反应延迟后再花多久定位到身体
+  body-aim-delay: 1.5
 
 # ==================== Tier 差异化设置 ====================
 # scav: 拾荒者 - 胆小，精度差，怕死就跑
@@ -263,6 +269,7 @@ tier-settings:
     durability-multiplier: 0.7
     aggressiveness: 0.3
     tactical-retreat-hp: 0.4
+    rush-dist-threshold: 6.0
 
   pmc:
     fire-rate-multiplier: 1.0
@@ -278,6 +285,7 @@ tier-settings:
     durability-multiplier: 1.0
     aggressiveness: 0.6
     tactical-retreat-hp: 0.35
+    rush-dist-threshold: 10.0
 
   boss:
     fire-rate-multiplier: 0.8
@@ -293,6 +301,7 @@ tier-settings:
     durability-multiplier: 1.5
     aggressiveness: 0.9
     tactical-retreat-hp: 0.25
+    rush-dist-threshold: 14.0
 
   sniper:
     fire-rate-multiplier: 1.5
@@ -308,6 +317,39 @@ tier-settings:
     durability-multiplier: 1.0
     aggressiveness: 0.4
     tactical-retreat-hp: 0.3
+    rush-dist-threshold: 8.0
+
+  cultist:
+    fire-rate-multiplier: 1.3
+    accuracy-multiplier: 1.5
+    reaction-delay-ms: 400
+    max-range: 15.0
+    vision-range: 20.0
+    sound-range: 30.0
+    can-ads: false
+    fire-mode: BURST
+    burst-size: 2
+    reload-speed-multiplier: 0.9
+    durability-multiplier: 0.8
+    aggressiveness: 0.8
+    tactical-retreat-hp: 0.2
+    rush-dist-threshold: 15.0
+
+  melee:
+    fire-rate-multiplier: 1.0
+    accuracy-multiplier: 2.0
+    reaction-delay-ms: 300
+    max-range: 5.0
+    vision-range: 15.0
+    sound-range: 25.0
+    can-ads: false
+    fire-mode: BURST
+    burst-size: 1
+    reload-speed-multiplier: 1.0
+    durability-multiplier: 1.0
+    aggressiveness: 0.9
+    tactical-retreat-hp: 0.15
+    rush-dist-threshold: 20.0
 
 # ==================== 武器设置 ====================
 weapons:
@@ -362,13 +404,22 @@ tactics:
     # 目标掩体后时投破片雷概率
     frag-on-cover-chance: 0.15
     # 目标周围多人(≥2)扎堆时投雷概率
-    frag-on-group-chance: 0.20
+    frag-on-group-chance: 0.2
     # 高血量+近距冲前时投闪光概率
-    flash-before-rush-chance: 0.30
+    flash-before-rush-chance: 0.3
     # 撤退时投烟雾掩护概率
     smoke-on-retreat-chance: 0.12
     # 跨越开阔地时投烟雾概率
     smoke-on-open-area-chance: 0.08
+    # 投掷物距离范围（格）
+    frag-min-dist: 5.0      # 破片雷最小距离（太近炸自己）
+    frag-max-dist: 25.0     # 破片雷最大距离（太远扔不到）
+    flash-min-dist: 3.0     # 闪光弹最小距离
+    flash-max-dist: 15.0    # 闪光弹最大距离
+    # 最小交战时间（tick）后才开始扔雷
+    min-engage-ticks: 20
+    # 掩体判定稳定性：连续多少 tick 无 LOS 才算掩体后
+    cover-confirm-ticks: 3
 
   # --- 压制射击 ---
   suppression:

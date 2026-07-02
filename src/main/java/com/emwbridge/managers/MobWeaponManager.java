@@ -41,7 +41,8 @@ public class MobWeaponManager {
 
     public MobWeaponManager(EMWMBridge plugin) {
         this.plugin = plugin;
-        this.weaponMetaCache = plugin.getEMWMConfigCache().getWeaponMetaCache();
+        var configCache = plugin.getEMWMConfigCache();
+        this.weaponMetaCache = (configCache != null) ? configCache.getWeaponMetaCache() : null;
         this.weaponCache = new ConcurrentHashMap<>();
     }
 

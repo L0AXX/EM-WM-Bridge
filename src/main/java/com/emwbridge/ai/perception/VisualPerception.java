@@ -41,6 +41,11 @@ public class VisualPerception {
     private double angleSide = 0.6;
     private double angleBack = 0.3;
 
+    // 玩家朝向倍率
+    private double targetFacingFront = 1.0;
+    private double targetFacingSide = 0.6;
+    private double targetFacingBack = 0.3;
+
     // 环境倍率
     private double envDayClear = 1.0;
     private double envNight = 0.5;
@@ -105,6 +110,42 @@ public class VisualPerception {
         bodyPartLegs = config.getDouble("perception.visual.body-part.legs", 0.3);
         flashlightBoost = config.getDouble("perception.visual.boost.flashlight", 2.0);
         laserBoost = config.getDouble("perception.visual.boost.laser", 1.5);
+        targetFacingFront = config.getDouble("perception.visual.target-facing.front", 1.0);
+        targetFacingSide = config.getDouble("perception.visual.target-facing.side", 0.6);
+        targetFacingBack = config.getDouble("perception.visual.target-facing.back", 0.3);
+    }
+
+    /**
+     * 自定义视线检测 — 正确处理透明方块（玻璃/铁栏杆等），不被Bukkit hasLineOfSight的isOccluding限制
+     * 只要任一身体部位（头/躯干/腿）未被固体方块遮挡即返回true
+     */
+    public boolean hasLineOfSight(LivingEntity entity, Player target) {
+        Location eyeLoc = entity.getEyeLocation();
+        double headY = target.getEyeHeight();
+        double torsoY = headY * 0.55;
+        double feetY = 0.3;
+        return !castRay(entity, eyeLoc, target, headY).blocked
+                || !castRay(entity, eyeLoc, target, torsoY).blocked
+                || !castRay(entity, eyeLoc, target, feetY).blocked;
+    }
+
+    /** 仅头部视线检测（用于判断是否可精确瞄准头部） */
+    public boolean hasHeadLOS(LivingEntity entity, Player target) {
+        return !castRay(entity, entity.getEyeLocation(), target, target.getEyeHeight()).blocked;
+    }
+
+    /**
+     * 玩家朝向倍率 — 玩家面向AI时更容易被发现
+     */
+    public double getTargetFacingMultiplier(Player target, Location aiEyeLoc) {
+        Vector targetDir = target.getLocation().getDirection().setY(0).normalize();
+        Vector toAI = aiEyeLoc.toVector().subtract(target.getLocation().toVector()).setY(0).normalize();
+        if (toAI.lengthSquared() < 0.01) return 1.0;
+        toAI.normalize();
+        double dot = targetDir.dot(toAI);
+        if (dot > 0.3) return targetFacingFront;      // 面向AI
+        if (dot > -0.3) return targetFacingSide;       // 侧对AI
+        return targetFacingBack;                         // 背对AI
     }
 
     /**

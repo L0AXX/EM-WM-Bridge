@@ -10,26 +10,39 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * 瞄准控制器 — 只决定AI"瞄哪里"，WM武器配置决定"打多准"
+ * 
+ * 职责：
+ * - 可见时：瞄躯干/瞄头（简配，不加自定义散布）
+ * - 不可见时：瞄身体+大偏移
+ * - 被压制时：瞄身体+大偏移
+ * - 初始延迟：不同tier有不同反应时间
+ */
 public class AimConvergenceManager {
 
     private final EMWMBridge plugin;
     private final Map<UUID, AimState> aimStates = new ConcurrentHashMap<>();
     private final Map<String, Double> initialDelays = new HashMap<>();
 
-    private double headshotWindowSeconds = 15.0;
-    private double convergenceRate = 0.85;
-    private double minSpreadMultiplier = 0.2;
-    private double visionLossResetSeconds = 2.0;
+    // 反应延迟后，投弹到躯干的总时间（秒）
+    private double bodyAimDelayBase = 1.5;
+    // 瞄准躯干的概率（剩余概率瞄腿，极低概率瞄头）
+    private double torsoAimChance = 0.75;
+    // 无LOS/被压制时的随机偏移半径（格）
+    private double blindAimDrift = 3.0;
+    // 头部瞄准加成概率（近距离且目标未警觉时）
+    private double headshotChanceClose = 0.15;
 
     public AimConvergenceManager(EMWMBridge plugin) {
         this.plugin = plugin;
     }
 
     public void reload(FileConfiguration config) {
-        headshotWindowSeconds = config.getDouble("aim.headshot-window-seconds", 15.0);
-        convergenceRate = config.getDouble("aim.convergence-rate", 0.85);
-        minSpreadMultiplier = config.getDouble("aim.min-spread-multiplier", 0.2);
-        visionLossResetSeconds = config.getDouble("aim.vision-loss-reset-seconds", 2.0);
+        bodyAimDelayBase = config.getDouble("aim.body-aim-delay", 1.5);
+        torsoAimChance = config.getDouble("aim.torso-aim-chance", 0.75);
+        blindAimDrift = config.getDouble("aim.blind-aim-drift", 3.0);
+        headshotChanceClose = config.getDouble("aim.headshot-chance-close", 0.15);
         initialDelays.clear();
         for (String tier : new String[]{"scav", "pmc", "cultist", "boss"}) {
             initialDelays.put(tier, config.getDouble("aim.initial-delay." + tier, 1.0));
@@ -39,60 +52,100 @@ public class AimConvergenceManager {
     public double getInitialDelay(String tier) {
         Double delay = initialDelays.get(tier.toLowerCase());
         if (delay == null) delay = 1.0;
-        return delay + (Math.random() - 0.5) * delay;
+        return delay + (Math.random() - 0.5) * delay * 0.5;
     }
 
+    /**
+     * 每次射击前计算瞄准点
+     * @param entity     射击者
+     * @param target     目标
+     * @param hasEyeLOS  是否能看到头部
+     * @param hasBodyLOS 是否能看到身体
+     * @param distance   距离
+     * @param tier       tier类型
+     * @param suppressing 是否在压制射击
+     * @return 瞄准结果（包含目标Location，spreadRadius仅用于debug）
+     */
     public AimResult update(LivingEntity entity, LivingEntity target,
-                            boolean hasEyeLOS, boolean hasBodyLOS, double baseSpread) {
+                            boolean hasEyeLOS, boolean hasBodyLOS, double distance,
+                            String tier, boolean suppressing) {
         UUID uuid = entity.getUniqueId();
         AimState state = aimStates.computeIfAbsent(uuid, k -> new AimState());
-        long now = System.currentTimeMillis();
+
+        // 初始延迟递减
+        if (state.remainingDelayTicks > 0) {
+            state.remainingDelayTicks--;
+            // 延迟期间目标偏移，模拟反应时间
+            Location drift = target.getLocation().clone().add(
+                    (Math.random() - 0.5) * 2.0,
+                    0,
+                    (Math.random() - 0.5) * 2.0
+            );
+            return new AimResult(drift, 1.0);
+        }
+
         boolean canSee = hasEyeLOS || hasBodyLOS;
 
-        if (canSee) {
-            if (state.lockStartTime == 0) state.lockStartTime = now;
-            state.lastVisionTime = now;
-            double lockSeconds = (now - state.lockStartTime) / 1000.0;
-            state.currentSpreadMultiplier = Math.max(minSpreadMultiplier,
-                    Math.pow(convergenceRate, lockSeconds));
-            Location targetPos = target.getLocation();
-            if (state.lastEngagePosition != null
-                    && state.lastEngagePosition.distance(targetPos) <= 2.0) {
-                state.currentSpreadMultiplier *= 0.7;
-            }
-            state.lastEngagePosition = targetPos.clone();
-        } else {
-            if (now - state.lastVisionTime > visionLossResetSeconds * 1000) {
-                state.currentSpreadMultiplier = 1.0;
-                state.lockStartTime = 0;
-            }
+        if (!canSee) {
+            // 看不见 → 大范围猜射击
+            Location blindGuess = target.getLocation().clone().add(
+                    (Math.random() - 0.5) * blindAimDrift,
+                    (Math.random() - 0.5) * blindAimDrift * 0.5,
+                    (Math.random() - 0.5) * blindAimDrift
+            );
+            return new AimResult(blindGuess, 2.0);
         }
 
-        double spread = baseSpread * state.currentSpreadMultiplier;
-        double lockSeconds = state.lockStartTime > 0
-                ? (now - state.lockStartTime) / 1000.0 : 0;
-        boolean headshotWindow = lockSeconds < headshotWindowSeconds && hasEyeLOS;
-
-        Location aimPoint;
-        if (headshotWindow) {
-            aimPoint = target.getEyeLocation();
-        } else if (hasBodyLOS) {
-            aimPoint = target.getLocation();
-        } else if (hasEyeLOS) {
-            aimPoint = target.getEyeLocation();
-        } else {
-            aimPoint = target.getLocation();
-            spread = baseSpread * 3.0;
+        if (suppressing) {
+            // 压制射击 → 瞄方向但故意打偏
+            return new AimResult(target.getLocation(), 1.0);
         }
 
-        Location finalPoint = aimPoint.clone().add(
-                (Math.random() - 0.5) * spread,
-                (Math.random() - 0.5) * spread * 0.6,
-                (Math.random() - 0.5) * spread
-        );
+        // 可见 → 选择瞄点
+        Location aimPoint = chooseAimPoint(target, distance, hasEyeLOS, state);
 
-        return new AimResult(finalPoint, spread);
+        return new AimResult(aimPoint, 0);
     }
+
+    private Location chooseAimPoint(LivingEntity target, double distance, boolean hasEyeLOS, AimState state) {
+        double roll = Math.random();
+
+        if (distance > 30) {
+            // 远距：全瞄躯干
+            return target.getLocation().clone().add(0, 0.6, 0);
+        }
+
+        if (distance < 10 && hasEyeLOS && roll < headshotChanceClose) {
+            // 近距+有视线+小概率爆头
+            state.headshotAttempts++;
+            return target.getEyeLocation().clone().add(
+                    (Math.random() - 0.5) * 0.3,  // 极小偏移
+                    (Math.random() - 0.5) * 0.15,
+                    (Math.random() - 0.5) * 0.3
+            );
+        }
+
+        // 默认：瞄躯干
+        if (roll < torsoAimChance) {
+            return target.getLocation().clone().add(0, 0.8, 0);
+        }
+
+        // 其他：瞄腿部
+        return target.getLocation();
+    }
+
+    /**
+     * 设置初始延迟
+     */
+    public void setInitialDelayTicks(UUID uuid, double delaySeconds) {
+        AimState state = aimStates.get(uuid);
+        if (state != null) {
+            state.remainingDelayTicks = (int) (delaySeconds * 20.0);
+            state.headshotAttempts = 0;
+        }
+    }
+
+    // ==================== 生命周期 ====================
 
     public void registerMob(UUID uuid) {
         aimStates.put(uuid, new AimState());
@@ -102,8 +155,12 @@ public class AimConvergenceManager {
         aimStates.remove(uuid);
     }
 
+    // ==================== 内部类 ====================
+
     public static class AimResult {
+        /** WM用来射击的目标位置 */
         public final Location aimPoint;
+        /** 仅供debug/统计的散布半径（WM内部散布不受此影响） */
         public final double spreadRadius;
 
         public AimResult(Location aimPoint, double spreadRadius) {
@@ -113,9 +170,7 @@ public class AimConvergenceManager {
     }
 
     static class AimState {
-        long lockStartTime = 0;
-        double currentSpreadMultiplier = 1.0;
-        Location lastEngagePosition;
-        long lastVisionTime = 0;
+        int remainingDelayTicks = 0;
+        int headshotAttempts = 0;
     }
 }
