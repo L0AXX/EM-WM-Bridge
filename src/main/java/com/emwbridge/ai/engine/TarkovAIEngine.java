@@ -1,6 +1,7 @@
 package com.emwbridge.ai.engine;
 
 import com.emwbridge.EMWMBridge;
+import com.emwbridge.ai.AiBehavior;
 import com.emwbridge.ai.combat.AimConvergenceManager;
 import com.emwbridge.ai.combat.CoverMovement;
 import com.emwbridge.ai.combat.TarkovTactics;
@@ -251,6 +252,12 @@ public class TarkovAIEngine {
         // P0-9 修复：防止 getMaxHealth() 为零导致除零和 NaN 传播
         double maxHealth = entity.getMaxHealth();
         double hpRatio = maxHealth > 0 ? entity.getHealth() / maxHealth : 1.0;
+
+        // 需求3：据点守卫行为 —— 完全独立的循环，玩家交战路径（下方）不受影响
+        if (state.behavior == AiBehavior.GUARD) {
+            executeGuardState(entity, state, hpRatio);
+            return;
+        }
 
         double tierVisionRange = plugin.getConfig().getDouble("tier-settings." + state.tier + ".vision-range", 50.0);
         aiVisionManager.getVisual().setMaxVisionRange(tierVisionRange);
@@ -715,6 +722,97 @@ public class TarkovAIEngine {
         }
     }
 
+    // ============ 需求3：据点守卫行为（GreyZone GUARD）============
+
+    /**
+     * 据点守卫主循环：
+     * - 在 home 的 aggroRadius 内寻找敌对目标（玩家或 AI，阵营感知），命中即猎杀；
+     * - 目标超出 leashDistance 则回防 home（朝 home 移动同时继续射击），绝不撤退；
+     * - 无目标则回到 home 驻守。
+     * 玩家交战路径（executeTacticalAction / decide）完全不受影响。
+     */
+    private void executeGuardState(LivingEntity entity, AIState state, double hpRatio) {
+        Location home = state.homeLocation != null ? state.homeLocation : entity.getLocation();
+        double aggroRadius = state.aggroRadius;
+        double leashDistance = state.leashDistance;
+
+        LivingEntity target = selectGuardTarget(entity, home, aggroRadius);
+        if (target == null) {
+            // 无目标：回到 home 驻守
+            if (safeDistance(entity.getLocation(), home) > 3.0) {
+                moveToward(entity, home);
+            }
+            return;
+        }
+
+        // 面向目标
+        Location mobLoc = entity.getLocation();
+        Vector dir = target.getLocation().toVector().subtract(mobLoc.toVector()).setY(0);
+        if (dir.lengthSquared() > 0.01) {
+            dir.normalize();
+            float yaw = (float) Math.toDegrees(Math.atan2(-dir.getX(), dir.getZ()));
+            entity.setRotation(yaw, mobLoc.getPitch());
+        }
+
+        double distance = safeDistance(entity.getLocation(), target.getLocation());
+        boolean hasLOS = (target instanceof Player p)
+                ? aiVisionManager.getVisual().hasLineOfSight(entity, p)
+                : distance < 60;
+
+        // 超拴绳距离：回防 home（朝 home 移动），但仍持续射击
+        if (safeDistance(entity.getLocation(), home) > leashDistance && entity instanceof Mob mob) {
+            mob.getPathfinder().moveTo(home, 1.0);
+        }
+
+        state.ticksSinceEngage++;
+        AimConvergenceManager.AimResult aim = aimConvergenceManager.update(
+                entity, target, hasLOS, hasLOS, distance, state.tier, false);
+        boolean ads = distance > hipfireRange;
+        if (hasLOS && tactics.shouldShoot(entity.getUniqueId(), hpRatio, 1.0)) {
+            if (weaponManager.shoot(entity, aim.aimPoint, ads)) {
+                tactics.recordShot(entity.getUniqueId());
+            }
+        }
+    }
+
+    /**
+     * 为据点守卫选取目标：返回 home 的 aggroRadius 内最近的敌对实体（玩家或 AI）。
+     * 阵营感知：玩家依据 faction 关系（neutral 仅被误伤才敌对），AI 依据 GreyZone 字符串阵营。
+     */
+    private LivingEntity selectGuardTarget(LivingEntity entity, Location home, double aggroRadius) {
+        LivingEntity best = null;
+        double bestDist = Double.MAX_VALUE;
+
+        for (Player p : entity.getWorld().getPlayers()) {
+            if (p.isDead() || !p.isOnline()) continue;
+            if (safeDistance(home, p.getLocation()) > aggroRadius) continue;
+            if (!isGuardHostile(entity, p)) continue;
+            double d = safeDistance(entity.getLocation(), p.getLocation());
+            if (d < bestDist) { best = p; bestDist = d; }
+        }
+
+        if (factionManager.isConfigured()) {
+            for (LivingEntity candidate : entity.getWorld().getEntitiesByClass(LivingEntity.class)) {
+                if (candidate == entity || candidate.isDead() || !candidate.hasMetadata("emwm_ai_enabled")) continue;
+                if (factionManager.getFactionId(candidate.getUniqueId()) == null) continue;
+                if (!factionManager.isHostile(entity, candidate)) continue;
+                if (safeDistance(home, candidate.getLocation()) > aggroRadius) continue;
+                double d = safeDistance(entity.getLocation(), candidate.getLocation());
+                if (d < bestDist) { best = candidate; bestDist = d; }
+            }
+        }
+        return best;
+    }
+
+    private boolean isGuardHostile(LivingEntity self, Player player) {
+        var rel = factionManager.getRelation(self, player);
+        if (rel == com.emwbridge.ai.faction.HostilityMatrix.Relation.HOSTILE) return true;
+        if (rel == com.emwbridge.ai.faction.HostilityMatrix.Relation.NEUTRAL) {
+            return factionManager.shouldTurnHostile(self, player);
+        }
+        return false; // FRIENDLY
+    }
+
     public void registerMob(LivingEntity entity, String tier) {
         UUID uuid = entity.getUniqueId();
         AIState state = new AIState(tier);
@@ -747,7 +845,23 @@ public class TarkovAIEngine {
         List<org.bukkit.metadata.MetadataValue> rhMeta = entity.getMetadata("emwm_retreat_hp");
         if (!rhMeta.isEmpty()) retreatHp = rhMeta.get(0).asDouble();
         personalityManager.assignPersonality(uuid, personality, neverRetreat, retreatHp);
-        squadManager.tryJoin(entity, tier, personality);
+
+        // 需求3：据点守卫行为 —— 读取 emwm_behavior 元数据，GUARD 时捕获 home 与参数
+        List<org.bukkit.metadata.MetadataValue> behaviorMeta = entity.getMetadata("emwm_behavior");
+        if (!behaviorMeta.isEmpty() && "GUARD".equalsIgnoreCase(behaviorMeta.get(0).asString())) {
+            state.behavior = AiBehavior.GUARD;
+            state.homeLocation = entity.getLocation().clone();
+            List<org.bukkit.metadata.MetadataValue> leashMeta = entity.getMetadata("emwm_leash_distance");
+            state.leashDistance = leashMeta.isEmpty() ? 45.0 : leashMeta.get(0).asDouble();
+            List<org.bukkit.metadata.MetadataValue> aggroMeta = entity.getMetadata("emwm_aggro_radius");
+            state.aggroRadius = aggroMeta.isEmpty() ? 35.0 : aggroMeta.get(0).asDouble();
+        }
+
+        // 需求2.4：读取编制名（emwm_squad）走命名编队，否则按距离自动编队
+        String squadName = null;
+        List<org.bukkit.metadata.MetadataValue> squadMeta = entity.getMetadata("emwm_squad");
+        if (!squadMeta.isEmpty()) squadName = squadMeta.get(0).asString();
+        squadManager.tryJoin(entity, tier, personality, squadName);
         aimConvergenceManager.registerMob(uuid);
         aimConvergenceManager.setInitialDelayTicks(uuid, aimConvergenceManager.getInitialDelay(tier));
         tactics.registerMob(uuid);
@@ -826,6 +940,12 @@ public class TarkovAIEngine {
         public Location lastKnownLocation;
         public Location patrolTarget;
         public int patrolCooldown;
+
+        // 需求3：据点守卫行为状态
+        public AiBehavior behavior = AiBehavior.FREE;
+        public Location homeLocation;
+        public double leashDistance = 45.0;
+        public double aggroRadius = 35.0;
 
         public AIState(String tier) {
             this.tier = tier;

@@ -213,6 +213,24 @@ public class EMWMConfigCache {
             config.setPersonalityPreset(section.getString("personality-preset"));
         }
 
+        // 需求2：指定编制名（对应 config.yml squad.squads.<name>）
+        if (section.contains("squad")) {
+            config.setSquad(section.getString("squad"));
+        }
+        // 需求3：据点守卫行为参数（behavior 可置于顶层或 guard 子块）
+        if (section.contains("behavior")) {
+            config.setBehavior(section.getString("behavior"));
+        }
+        if (section.contains("guard")) {
+            ConfigurationSection guard = section.getConfigurationSection("guard");
+            if (guard != null) {
+                if (guard.contains("behavior")) config.setBehavior(guard.getString("behavior"));
+                if (guard.contains("guard-radius")) config.setGuardRadius(guard.getDouble("guard-radius"));
+                if (guard.contains("aggro-radius")) config.setAggroRadius(guard.getDouble("aggro-radius"));
+                if (guard.contains("leash-distance")) config.setLeashDistance(guard.getDouble("leash-distance"));
+            }
+        }
+
         // 投掷物AI参数
         if (section.contains("enableGrenadeAI")) {
             config.setEnableGrenadeAI(section.getBoolean("enableGrenadeAI"));
@@ -757,6 +775,11 @@ public class EMWMConfigCache {
                 if (config.getFaction() != null) merged.setFaction(config.getFaction());
                 if (config.getNeverRetreat() != null) merged.setNeverRetreat(config.getNeverRetreat());
                 if (config.getPersonalityPreset() != null) merged.setPersonalityPreset(config.getPersonalityPreset());
+                if (config.getSquad() != null) merged.setSquad(config.getSquad());
+                if (config.getBehavior() != null) merged.setBehavior(config.getBehavior());
+                if (config.getGuardRadius() != null) merged.setGuardRadius(config.getGuardRadius());
+                if (config.getAggroRadius() != null) merged.setAggroRadius(config.getAggroRadius());
+                if (config.getLeashDistance() != null) merged.setLeashDistance(config.getLeashDistance());
 
                 // 用模板填充null字段
                 merged.mergeWithTemplate(templateConfig);

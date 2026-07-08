@@ -4,5 +4,6 @@ public enum AIDecision {
     ENGAGE,
     DEFEND,
     AMBUSH,
-    RETREAT
+    RETREAT,
+    GUARD
 }

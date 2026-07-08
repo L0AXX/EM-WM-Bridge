@@ -116,6 +116,13 @@ public class EMWMWeaponConfig {
     private Boolean neverRetreat;            // 永不撤退：true=即使血量见底也绝不 RETREAT（狂信徒/死守单位）；null=false
     private String personalityPreset;        // 性格预设名（对应 config.yml personality.presets.<name>），null=按 tier 随机 roll
 
+    // ==================== 扩展：编制与据点行为（GreyZone 需求2/需求3）====================
+    private String squad;                    // 编制名（对应 config.yml squad.squads.<name>），null=按距离自动编队
+    private String behavior;                 // 行为模式：FREE（默认游荡）/ GUARD（据点死守），null=FREE
+    private Double guardRadius;              // 据点驻守半径（回到 home 的容差），null=12
+    private Double aggroRadius;              // 仇恨半径：敌入此范围即猎杀，null=35
+    private Double leashDistance;            // 拴绳距离：超出则回防 home，null=45
+
     // ==================== 武器池随机选择 ====================
 
     /**
@@ -389,6 +396,13 @@ public class EMWMWeaponConfig {
         // 扩展性格与撤退控制（GreyZone 需求4）
         if (neverRetreat == null) neverRetreat = template.neverRetreat;
         if (personalityPreset == null) personalityPreset = template.personalityPreset;
+
+        // 扩展编制与据点行为（GreyZone 需求2/3）
+        if (squad == null) squad = template.squad;
+        if (behavior == null) behavior = template.behavior;
+        if (guardRadius == null) guardRadius = template.guardRadius;
+        if (aggroRadius == null) aggroRadius = template.aggroRadius;
+        if (leashDistance == null) leashDistance = template.leashDistance;
     }
 
     // ==================== Getter/Setter ====================
@@ -619,6 +633,25 @@ public class EMWMWeaponConfig {
 
     public String getPersonalityPreset() { return personalityPreset; }
     public void setPersonalityPreset(String personalityPreset) { this.personalityPreset = personalityPreset; explicitlySetFields.add("personalityPreset"); }
+
+    // ==================== 编制与据点行为（GreyZone 需求2/需求3）====================
+    public String getSquad() { return squad; }
+    public void setSquad(String squad) { this.squad = squad; explicitlySetFields.add("squad"); }
+
+    public String getBehavior() { return behavior; }
+    public void setBehavior(String behavior) { this.behavior = behavior; explicitlySetFields.add("behavior"); }
+
+    public Double getGuardRadius() { return guardRadius; }
+    public double getGuardRadiusOrDefault() { return guardRadius != null ? guardRadius : 12.0; }
+    public void setGuardRadius(Double guardRadius) { this.guardRadius = guardRadius; explicitlySetFields.add("guardRadius"); }
+
+    public Double getAggroRadius() { return aggroRadius; }
+    public double getAggroRadiusOrDefault() { return aggroRadius != null ? aggroRadius : 35.0; }
+    public void setAggroRadius(Double aggroRadius) { this.aggroRadius = aggroRadius; explicitlySetFields.add("aggroRadius"); }
+
+    public Double getLeashDistance() { return leashDistance; }
+    public double getLeashDistanceOrDefault() { return leashDistance != null ? leashDistance : 45.0; }
+    public void setLeashDistance(Double leashDistance) { this.leashDistance = leashDistance; explicitlySetFields.add("leashDistance"); }
 
     /**
      * 计算射击间隔（tick）

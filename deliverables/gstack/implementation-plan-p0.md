@@ -136,7 +136,24 @@
 - 验收单测：`PersonalityManagerTest`（7 项：neverRetreat 不撤退、阈值覆盖、0.15 零回归、预设解析/强制、无效名安全忽略、removeEntity 清理）+ `EMWMWeaponConfigTest`（5 项合并/默认值）
 - 全套 415 测试 0 失败，覆盖率门禁✅
 
-### ⏳ 需求 2 / 3 / 6 / 7 / 8 — 按 M3–M5 推进
+### ✅ 需求 2（角色编制小队）— 已完成
+- `SquadManager`：`tryJoin(entity,tier,personality,squadName)` 重载（需求2.2），命名编制无视距离直接编队；`squad.squads.<name>.max-size` 覆盖全局上限（需求2.1，可放开 ≥8）；`assignRole` 按 `roles` 配额定角色，配额耗尽随机（需求2.3）；修复 `newSquad.captainUuid` 写死 bug（两分支恒等）
+- `EMWMWeaponConfig` 新增 `squad` 字段（含合并继承）；`EMWMConfigCache` 解析 `squad` 段
+- 接线：监听器写 `emwm_squad` 元数据，引擎 `registerMob` 读取并走命名编队（需求2.4）
+- `config.yml` 增加 `squad.squads.iron_legion_fireteam` 示例（max-size=8 + roles 配额）
+- 单测 `SquadManagerTest`（5 项）：同名编队/满员拒绝/角色配额/captain/全局回退
+
+### ✅ 需求 3（据点守卫行为）— 已完成
+- 新增 `AiBehavior` 枚举（FREE/GUARD）+ `AIDecision.GUARD`（需求3.1）
+- `AIState` 增加 `behavior`/`homeLocation`/`leashDistance`/`aggroRadius`（需求3.2）
+- 引擎 `tickEntity`：GUARD 实体走独立 `executeGuardState` —— 驻守 home、aggroRadius 内猎杀、超 leashDistance 回防、禁用撤退（需求3.3）；**玩家交战路径完全不受影响**
+- `EMWMWeaponConfig` 新增 `behavior`/`guardRadius`/`aggroRadius`/`leashDistance`（含默认值 12/35/45 与模板继承）；`EMWMConfigCache` 解析顶层 `behavior` 与 `guard` 子块（需求3.4）
+- 接线：监听器写 `emwm_behavior`/`emwm_aggro_radius`/`emwm_leash_distance`，引擎 `registerMob` 捕获 home 与半径
+- 单测：`EMWMWeaponConfigTest`（3 项默认/继承）+ `EMWMConfigCacheTest`（2 项 guard 子块/顶层解析）
+
+### ⏳ 需求 6 / 7 / 8 — 按 M4–M5 推进
+- 需求6（死亡掉货币弹，M4）注意：greyzone_ammos.yml 缺 gun→ammo 映射，需独立映射段
+- 需求7（护甲混用 ArmorMechanics，M5 P1）、需求8（Boss 协同召唤，M5 P2）
 
 ---
 

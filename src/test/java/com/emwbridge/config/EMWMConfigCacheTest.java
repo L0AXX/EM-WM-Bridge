@@ -128,12 +128,48 @@ class EMWMConfigCacheTest {
         }
 
         @Test
+        @DisplayName("需求3：guard 子块解析 behavior/guard-radius/aggro-radius/leash-distance")
+        void guardBlockParsed() throws Exception {
+            ConfigurationSection section = mockSection();
+            ConfigurationSection guard = mockSection();
+            when(section.contains("guard")).thenReturn(true);
+            when(section.getConfigurationSection("guard")).thenReturn(guard);
+            when(guard.contains("behavior")).thenReturn(true);
+            when(guard.getString("behavior")).thenReturn("GUARD");
+            when(guard.contains("guard-radius")).thenReturn(true);
+            when(guard.getDouble("guard-radius")).thenReturn(12.0);
+            when(guard.contains("aggro-radius")).thenReturn(true);
+            when(guard.getDouble("aggro-radius")).thenReturn(30.0);
+            when(guard.contains("leash-distance")).thenReturn(true);
+            when(guard.getDouble("leash-distance")).thenReturn(50.0);
+
+            EMWMWeaponConfig result = parse(section);
+            assertEquals("GUARD", result.getBehavior());
+            assertEquals(12.0, result.getGuardRadius(), 0.001);
+            assertEquals(30.0, result.getAggroRadius(), 0.001);
+            assertEquals(50.0, result.getLeashDistance(), 0.001);
+        }
+
+        @Test
+        @DisplayName("需求2/3：顶层 squad 与 behavior 解析")
+        void squadAndBehaviorTopLevel() throws Exception {
+            ConfigurationSection section = mockSection();
+            when(section.contains("squad")).thenReturn(true);
+            when(section.getString("squad")).thenReturn("iron_legion_fireteam");
+            when(section.contains("behavior")).thenReturn(true);
+            when(section.getString("behavior")).thenReturn("GUARD");
+
+            EMWMWeaponConfig result = parse(section);
+            assertEquals("iron_legion_fireteam", result.getSquad());
+            assertEquals("GUARD", result.getBehavior());
+        }
+
+        @Test
         @DisplayName("fireRateTicks 为 0 时不应设置 fireRate")
         void zeroFireRateTicksDoesNotSetFireRate() throws Exception {
             ConfigurationSection section = mockSection();
             when(section.contains("fireRateTicks")).thenReturn(true);
             when(section.getInt("fireRateTicks")).thenReturn(0);
-
             EMWMWeaponConfig result = parse(section);
 
             assertNotNull(result);

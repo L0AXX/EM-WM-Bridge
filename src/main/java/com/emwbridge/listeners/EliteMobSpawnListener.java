@@ -210,6 +210,18 @@ public class EliteMobSpawnListener implements Listener {
             entity.setMetadata("emwm_retreat_hp", new FixedMetadataValue(plugin, config.getRetreatHpThreshold()));
         }
 
+        // 需求2：指定编制名（供 TarkovAIEngine.registerMob 走命名编队，null 时按距离自动编队）
+        if (config.getSquad() != null) {
+            entity.setMetadata("emwm_squad", new FixedMetadataValue(plugin, config.getSquad()));
+        }
+
+        // 需求3：据点守卫行为参数（供 TarkovAIEngine.registerMob 捕获 home 与半径）
+        if (config.getBehavior() != null) {
+            entity.setMetadata("emwm_behavior", new FixedMetadataValue(plugin, config.getBehavior()));
+            entity.setMetadata("emwm_aggro_radius", new FixedMetadataValue(plugin, config.getAggroRadiusOrDefault()));
+            entity.setMetadata("emwm_leash_distance", new FixedMetadataValue(plugin, config.getLeashDistanceOrDefault()));
+        }
+
         // 存储配置参数供AI使用
         entity.setMetadata("emwm_fire_rate_ticks", new FixedMetadataValue(plugin, config.getFireRateTicks()));
         entity.setMetadata("emwm_max_range", new FixedMetadataValue(plugin, config.getMaxRange()));

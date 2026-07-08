@@ -164,4 +164,40 @@ class EMWMWeaponConfigTest {
         individual.mergeWithTemplate(template);
         assertEquals("fanatic", individual.getPersonalityPreset(), "个体未设置时继承模板的预设名");
     }
+
+    // ==================== 需求2/需求3：squad + 据点守卫行为 默认与继承 ====================
+
+    @Test
+    @DisplayName("behavior 默认 null(=FREE 游荡,向后兼容)")
+    void behaviorDefaultsToNull() {
+        EMWMWeaponConfig c = new EMWMWeaponConfig();
+        assertNull(c.getBehavior(), "未设置时默认 null(=FREE)");
+    }
+
+    @Test
+    @DisplayName("据点守卫半径默认值：guard=12 / aggro=35 / leash=45")
+    void guardRadiiDefaults() {
+        EMWMWeaponConfig c = new EMWMWeaponConfig();
+        assertEquals(12.0, c.getGuardRadiusOrDefault(), 0.001);
+        assertEquals(35.0, c.getAggroRadiusOrDefault(), 0.001);
+        assertEquals(45.0, c.getLeashDistanceOrDefault(), 0.001);
+    }
+
+    @Test
+    @DisplayName("合并时 squad/behavior/guard 半径从模板继承(null 字段)")
+    void squadAndGuardInheritFromTemplate() {
+        EMWMWeaponConfig template = new EMWMWeaponConfig();
+        template.setSquad("iron_legion_fireteam");
+        template.setBehavior("GUARD");
+        template.setAggroRadius(30.0);
+        template.setLeashDistance(50.0);
+
+        EMWMWeaponConfig individual = new EMWMWeaponConfig();
+        individual.mergeWithTemplate(template);
+
+        assertEquals("iron_legion_fireteam", individual.getSquad(), "继承编制名");
+        assertEquals("GUARD", individual.getBehavior(), "继承行为模式");
+        assertEquals(30.0, individual.getAggroRadiusOrDefault(), 0.001, "继承 aggro 半径");
+        assertEquals(50.0, individual.getLeashDistanceOrDefault(), 0.001, "继承 leash 距离");
+    }
 }

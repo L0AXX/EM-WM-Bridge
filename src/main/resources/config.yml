@@ -179,10 +179,21 @@ perception:
 # ==================== 小队系统 ====================
 squad:
   enabled: true
-  # 最大小队人数
+  # 最大小队人数（需求2.1：GreyZone 可放开 ≥8；命名编制可在下方覆盖）
   max-size: 5
   # 情报共享范围 (格)
   intel-share-range: 50.0
+  # 需求2.2/2.3：命名编制定义。模板通过 squad: <name> 指定实体加入哪个编制。
+  # max-size 覆盖全局上限；roles 为角色配额（ASSAULT/SNIPER/SUPPRESSOR/FLANKER），
+  # AI 生成时优先填满配额，配额耗尽后随机。
+  squads:
+    iron_legion_fireteam:
+      max-size: 8
+      roles:
+        ASSAULT: 4
+        SNIPER: 1
+        SUPPRESSOR: 2
+        FLANKER: 1
 
 # ==================== 性格系统 ====================
 # 8种塔科夫AI性格，每种性格影响攻击/防守/伏击/撤退权重
