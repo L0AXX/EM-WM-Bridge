@@ -1,13 +1,58 @@
-node_modules/
-.DS_Store
-dist/
+# Gradle
+.gradle/
 build/
+bin/
+gradle-app.setting
+!gradle/wrapper/gradle-wrapper.jar
+
+# Java
+*.class
+hs_err_pid*
+replay_pid*
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.factorypath
+.settings/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+build_error.log
+build_output.log
+test-output.txt
+
+# Environment
 .env
 .env.local
-*.log
-.vscode/
-.idea/
+
+# Minecraft Server (local dev)
+server/
+*.lock
+
+# Server plugins for integration test (not committed)
+server-plugins/
+
+# Keep libs (binary dependencies)
+!libs/*.jar
+
+# Keep deliverables
+!deliverables/
+
+# Local tooling / IDE caches (do not commit)
+.workbuddy/
+.codebuddy/
 __pycache__/
-*.pyc
-.next/
-coverage/
+plugins-test/
