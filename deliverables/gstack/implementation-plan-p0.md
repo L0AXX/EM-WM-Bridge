@@ -102,4 +102,30 @@
 
 ---
 
+## 4. 进展记录（逐需求）
+
+### ✅ 需求 5（AI 弹药隔离语义化）— 已完成
+- `EMWMWeaponConfig.consumeAmmo`（默认 true=有限，GreyZone 模板设 false=无限）
+- `MobWeaponInstance.consumesAmmo` + `MobWeaponManager.shoot` 门控；`EMWMConfigCache` 解析+合并
+- 4 测试 PASS（连射100发 emwm_ammo 不递减）
+
+### ✅ 需求 1 基础设施（数据 + 加载 + 打标签）— 已完成 2026-07-09
+- 新增 `emwm_factions.yml`（GreyZone 8 阵营 + player，对称关系矩阵）
+- 新增 `FactionProfile`；`FactionManager` 重写为「字符串阵营系统」+ 旧 Tarkov 枚举回退（零破坏）
+- `TarkovAIEngine` 构造 `factionManager.load(plugin)`；`registerMob` 读 `emwm_faction` 标签打标签
+- `EMWMWeaponConfig.faction` + `EMWMConfigCache` 解析/合并；`EliteMobSpawnListener` 写 `emwm_faction` 元数据
+- 7 测试 PASS（白狼vs玩家=FRIENDLY，vs噬体教=HOSTILE，vs拾荒者=NEUTRAL，未配置回退枚举）
+- **关键修复**：`FactionManager.load()` 改为异常安全（try/catch），避免 mock 环境 `saveResource` 抛错拖垮引擎构造
+- 全套 402 测试 0 失败，覆盖率 33.3%（门禁✅）
+
+### ⏳ 需求 1.4–1.5（跨阵营目标选择接线）— 待做
+- `TarkovAIEngine.tickEntity` L259 候选扫描由 `getPlayers()` 扩展为含 AI 实体，按 `getRelation==HOSTILE` 过滤
+- neutral 被误伤经 `shouldTurnHostile` 反击
+
+### ⏳ 需求 2 / 3 / 4 / 6 / 7 / 8 — 按 M2–M5 推进
+
+---
+
+> ⚠️ **本地测试坑（团队必读）**：本沙箱 Gradle **守护进程**环境过大，fork 测试 JVM 会 `xargs: environment is too large for exec` → 瞬时退出。跑测试必须加 `--no-daemon`：`./gradlew test --no-daemon`。GitHub Actions CI（Linux runner）不受影响，作为权威测试裁判。
+
 *对齐日期：2026-07-09 ｜ 下一步：逐里程碑交付，每需求带单测 + 测试服黑盒验证。*

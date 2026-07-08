@@ -81,6 +81,7 @@ public class TarkovAIEngine {
         this.aiVisionManager = new AIVisionManager(plugin, auditory, eventDispatcher);
 
         this.factionManager = new FactionManager();
+        this.factionManager.load(plugin);
         this.personalityManager = new PersonalityManager(plugin);
         this.squadManager = new SquadManager(plugin);
         this.aimConvergenceManager = new AimConvergenceManager(plugin);
@@ -671,6 +672,15 @@ public class TarkovAIEngine {
         activeMobs.put(uuid, state);
         aiVisionManager.registerMob(uuid);
         factionManager.assignByTier(uuid, tier);
+        // 需求1 基础设施：若实体携带 emwm_faction 标签（由 EMWM 模板 faction 字段或外部设置），
+        // 且 emwm_factions.yml 已配置该阵营，则启用 GreyZone 字符串阵营系统。
+        List<org.bukkit.metadata.MetadataValue> factionMeta = entity.getMetadata("emwm_faction");
+        if (!factionMeta.isEmpty() && factionManager.isConfigured()) {
+            String fid = factionMeta.get(0).asString();
+            if (fid != null && factionManager.getProfile(fid) != null) {
+                factionManager.assignFactionId(uuid, fid);
+            }
+        }
         var personality = personalityManager.rollByTier(tier);
         personalityManager.assignPersonality(uuid, personality);
         squadManager.tryJoin(entity, tier, personality);

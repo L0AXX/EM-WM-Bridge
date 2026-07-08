@@ -110,6 +110,7 @@ public class EMWMWeaponConfig {
     // ==================== 扩展：桥接业务控制参数 ====================
     private Double meleeSwitchHealthPercent; // 血量低于该比例强制切近战，null=0.3
     private Boolean consumeAmmo;             // 是否消耗弹药供给：AI 开火是否递减 emwm_ammo；null=true(默认有限,向后兼容)，GreyZone 模板设 false=无限
+    private String faction;                  // GreyZone 阵营ID（emwm_factions.yml 的 key），null=使用内置 Tarkov 枚举回退
 
     // ==================== 武器池随机选择 ====================
 
@@ -379,6 +380,7 @@ public class EMWMWeaponConfig {
         // 扩展桥接控制参数
         if (meleeSwitchHealthPercent == null) meleeSwitchHealthPercent = template.meleeSwitchHealthPercent;
         if (consumeAmmo == null) consumeAmmo = template.consumeAmmo;
+        if (faction == null) faction = template.faction;
     }
 
     // ==================== Getter/Setter ====================
@@ -599,6 +601,9 @@ public class EMWMWeaponConfig {
     public Boolean getConsumeAmmo() { return consumeAmmo; }
     public boolean isConsumeAmmoOrDefault() { return consumeAmmo != null ? consumeAmmo : true; }
     public void setConsumeAmmo(Boolean consumeAmmo) { this.consumeAmmo = consumeAmmo; explicitlySetFields.add("consumeAmmo"); }
+
+    public String getFaction() { return faction; }
+    public void setFaction(String faction) { this.faction = faction; explicitlySetFields.add("faction"); }
 
     /**
      * 计算射击间隔（tick）

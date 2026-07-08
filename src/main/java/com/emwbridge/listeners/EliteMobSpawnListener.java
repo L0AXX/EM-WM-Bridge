@@ -192,6 +192,12 @@ public class EliteMobSpawnListener implements Listener {
         entity.setMetadata("emwm_last_shot", new FixedMetadataValue(plugin, 0L));
         entity.setMetadata("emwm_ai_enabled", new FixedMetadataValue(plugin, true));
 
+        // 需求1 基础设施：若 EMWM 模板指定了 GreyZone 阵营ID，写入 emwm_faction 标签，
+        // 供 TarkovAIEngine.registerMob 启用字符串阵营系统。null 时不影响旧枚举回退。
+        if (config.getFaction() != null) {
+            entity.setMetadata("emwm_faction", new FixedMetadataValue(plugin, config.getFaction()));
+        }
+
         // 存储配置参数供AI使用
         entity.setMetadata("emwm_fire_rate_ticks", new FixedMetadataValue(plugin, config.getFireRateTicks()));
         entity.setMetadata("emwm_max_range", new FixedMetadataValue(plugin, config.getMaxRange()));

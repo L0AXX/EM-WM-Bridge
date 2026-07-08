@@ -1,0 +1,75 @@
+# EM-WM-Bridge 阵营定义（GreyZone 地铁末日）
+# ---------------------------------------------------------------------------
+# 当且仅当本文件存在、且怪物实体携带 emwm_faction 元数据(或模板 faction 字段)时，
+# 启用「可配置字符串阵营系统」；否则回退到内置 Tarkov 枚举(HostilityMatrix)。
+#
+# relations 支持三类：
+#   hostile : 敌对（主动攻击）
+#   ally    : 友方（不攻击，协同）
+#   neutral : 中立（不主动攻击；被误伤后经 shouldTurnHostile 可反击）
+# 未列出的关系默认视为敌对（HOSTILE）。
+# ---------------------------------------------------------------------------
+
+factions:
+  iron_legion:
+    display: "铁卫军"
+    relations:
+      hostile: [hive_cult, mutant, raven]
+      ally: [station_town, precursor, white_wolf, player]
+      neutral: [scav_clan]
+
+  station_town:
+    display: "车站镇"
+    relations:
+      hostile: [hive_cult, mutant, raven]
+      ally: [iron_legion, precursor, white_wolf, player]
+      neutral: [scav_clan]
+
+  precursor:
+    display: "先驱者"
+    relations:
+      hostile: [hive_cult, mutant, raven]
+      ally: [iron_legion, station_town, white_wolf, player]
+      neutral: [scav_clan]
+
+  white_wolf:
+    display: "白狼"
+    relations:
+      hostile: [hive_cult, mutant, raven]
+      ally: [iron_legion, station_town, precursor, player]
+      neutral: [scav_clan]
+
+  player:
+    display: "幸存者(玩家)"
+    relations:
+      hostile: [hive_cult, mutant, raven]
+      ally: [iron_legion, station_town, precursor, white_wolf]
+      neutral: [scav_clan]
+
+  hive_cult:
+    display: "噬体教"
+    relations:
+      hostile: [iron_legion, station_town, precursor, white_wolf, player]
+      ally: [mutant, raven]
+      neutral: [scav_clan]
+
+  mutant:
+    display: "变异体"
+    relations:
+      hostile: [iron_legion, station_town, precursor, white_wolf, player]
+      ally: [hive_cult, raven]
+      neutral: [scav_clan]
+
+  raven:
+    display: "渡鸦"
+    relations:
+      hostile: [iron_legion, station_town, precursor, white_wolf, player]
+      ally: [hive_cult, mutant]
+      neutral: [scav_clan]
+
+  scav_clan:
+    display: "拾荒者部族"
+    relations:
+      hostile: []
+      ally: []
+      neutral: [iron_legion, hive_cult, mutant, raven, station_town, precursor, white_wolf, player]
