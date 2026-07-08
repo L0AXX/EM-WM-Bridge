@@ -232,6 +232,8 @@ public class MobWeaponManager {
                     adsSpreadMult
             );
 
+            instance.setConsumeAmmo(config.isConsumeAmmoOrDefault());
+
             weaponCache.put(entity.getUniqueId(), instance);
 
             entity.setMetadata("emwm_weapon", new FixedMetadataValue(plugin, weaponTitle));
@@ -457,7 +459,7 @@ public class MobWeaponManager {
             return false;
         }
 
-        if (instance.getCurrentAmmo() <= 0) {
+        if (instance.consumesAmmo() && instance.getCurrentAmmo() <= 0) {
             return false;
         }
 
@@ -490,10 +492,12 @@ public class MobWeaponManager {
             // 生物端 WM Trail 粒子可能不渲染 → 兜底: 强制生成一个枪口粒子包
             shootEffect(entity, spreadTarget);
 
-            instance.setCurrentAmmo(instance.getCurrentAmmo() - 1);
+            if (instance.consumesAmmo()) {
+                instance.setCurrentAmmo(instance.getCurrentAmmo() - 1);
+                entity.setMetadata("emwm_ammo",
+                        new FixedMetadataValue(plugin, instance.getCurrentAmmo()));
+            }
             instance.markShot();
-            entity.setMetadata("emwm_ammo",
-                    new FixedMetadataValue(plugin, instance.getCurrentAmmo()));
 
             if (durabilityEnabled) {
                 int newDurability = Math.max(0, instance.getCurrentDurability() - decayPerShot);
@@ -719,6 +723,7 @@ public class MobWeaponManager {
         private final double baseSpread;
         private final double adsSpreadMultiplier;
         private long lastShotTime;
+        private boolean consumeAmmo = true; // 默认有限(向后兼容); false=无限(经济护栏,不递减 emwm_ammo)
 
         public MobWeaponInstance(String weaponTitle, int currentDurability, int maxDurability,
                                   boolean broken, int magazineSize, int currentAmmo, int reloadTicks,
@@ -746,6 +751,8 @@ public class MobWeaponManager {
         public int getMagazineSize() { return magazineSize; }
         public int getCurrentAmmo() { return currentAmmo; }
         public void setCurrentAmmo(int ammo) { this.currentAmmo = ammo; }
+        public boolean consumesAmmo() { return consumeAmmo; }
+        public void setConsumeAmmo(boolean value) { this.consumeAmmo = value; }
         public int getReloadTicks() { return reloadTicks; }
         public boolean isReloading() { return reloading; }
         public void setReloading(boolean reloading) { this.reloading = reloading; }

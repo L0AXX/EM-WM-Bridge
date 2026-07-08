@@ -1,0 +1,105 @@
+# EM-WM-Bridge × GreyZone 实施计划（颗粒度对齐版）
+
+> 受众：插件团队（执行）｜ 对齐对象：设计团队 `engineering/EMWM-Bridge_底层支撑需求规格.md` v0.1
+> 目的：把设计侧 8 项需求**逐字段**对齐到代码任务（文件:方法级），锁定 5 个未决项，给出里程碑与验收点。
+> 依据：`feasibility-greyzone-emwm-2026-07-09.md` + 本轮代码探查（gstack-code-mapper）。
+
+---
+
+## 0. 五个未决项 —— 已锁定决策
+
+| # | 未决项（规格书 §7） | 锁定决策 | 理由 |
+|---|----------------------|----------|------|
+| U1 | 目标选择实现路径（桥接层 vs EliteMobs 事件） | **桥接层独立实现**，`use-elitemobs-events` 保持 false | 默认即 false；关系矩阵在桥接层实现，最可控 |
+| U2 | 阵营标签载体（emwm: 内联 vs 独立文件） | **独立 `emwm_factions.yml`**（registry+relations）+ 逐实体 `emwm_faction` 元数据覆盖 | 设计侧倾向独立文件，利于跨实体维护 |
+| U3 | WM 弹药隔离 API 是否存在 | **不需要 WM API**；`WeaponMechanicsAPI.shoot(entity,title,loc)` 无弹药参，AI 用自有 `emwm_ammo` 计数 → 已隔离。仅加 `consumeAmmo` 开关做语义化 | 已核实 |
+| U4 | 死亡掉落结算权（EM vs 桥接层） | **桥接层拦截死亡注入货币弹 ItemStack** | EMWM 掌握"怪持哪把枪"，由它算掉落最准 |
+| U5 | 数值 `[PLACEHOLDER]`（半径/数量） | **首版用规格书 §3 默认值**：aggroRadius=35 / guardRadius=12 / leashDistance=45 / lootAmmoAmount=[8,24]；测试服实机校准后回填 | 先跑通逻辑，再调参 |
+
+---
+
+## 1. 颗粒度映射总表（需求 → 子任务 → 代码落点 → 验收）
+
+### 需求 5 ｜ AI 弹药隔离【P0】—— ✅ 已交付（consumeAmmo 字段 + 单测，2026-07-09）
+| 子任务 | 代码落点 | 验收点 |
+|--------|----------|--------|
+| 5.1 `consumeAmmo` 字段加入 `EMWMWeaponConfig`（默认 false） | `config/EMWMWeaponConfig.java` | 旧模板缺省=false 不报错 |
+| 5.2 shoot 弹药判定前置 `if(!consumeAmmo)` 跳过递减 | `managers/MobWeaponManager.shoot` L460/L493 | AI 开火不扣 emwm_ammo |
+| 5.3 单测：连射 100 发，玩家货币弹药(WM)库存 0 变化；emwm_ammo 不递减 | 新增 `MobWeaponManagerAmmoTest` | 断言货币弹药不变 |
+
+### 需求 1 ｜ 阵营归属与跨阵营目标选择【P0】
+| 子任务 | 代码落点 | 验收点 |
+|--------|----------|--------|
+| 1.1 新建 `emwm_factions.yml`（registry+relations，取自规格书 §3） | `src/main/resources/emwm_factions.yml` | 8 阵营+关系矩阵完整 |
+| 1.2 `FactionManager.load(config)` 加载 registry/relations | `managers/FactionManager` / `ai/faction/*` | 启动加载无报错 |
+| 1.3 生成时打标签：读 metadata `emwm_faction` 覆盖 `assignByTier` | `listeners/EliteMobSpawnListener.bindWithEMWMConfig` L148 末尾 | 实体带 faction 标签 |
+| 1.4 目标候选扩展：扫 `getLivingEntities()`，按 `getRelation==HOSTILE` 过滤 | `ai/TarkovAIEngine.tickEntity` L259（现仅 getPlayers） | 白狼只打敌对阵营怪，不打友方/中立 |
+| 1.5 neutral 被攻击才反击（shouldTurnHostile 已有 L47，接线） | `FactionManager.shouldTurnHostile` | 车站镇被误伤不还手 |
+
+### 需求 4 ｜ 永不撤退 + 性格预设【P0】
+| 子任务 | 代码落点 | 验收点 |
+|--------|----------|--------|
+| 4.1 `neverRetreat` 字段 + 撤退阈值改读 `tacticalRetreatHp`（现死字段 L123 未被引用） | `config/EMWMWeaponConfig` + `PersonalityManager.decide` L102 | 持 neverRetreat 血量 1% 不撤退 |
+| 4.2 `personalityPreset` 命名预设（config `personality.presets.*` 引用） | `ai/personality/PersonalityType` + `assignPersonality` L83 | 模板可强制指定性格 |
+| 4.3 单测：neverRetreat 实体始终 ENGAGE | 新增测试 | 断言不进入 RETREAT |
+
+### 需求 2 ｜ 角色编制小队【P0】
+| 子任务 | 代码落点 | 验收点 |
+|--------|----------|--------|
+| 2.1 全局 `squad.max-size` 放开 ≥8（或按编制覆盖） | `managers/SquadManager.reload` L29 | 编制可超 5 |
+| 2.2 `squads:` 段 + `tryJoin(entity,tier,personality,squadName)` 重载 | `managers/SquadManager` L33/L61 | 指定编制生成 |
+| 2.3 `assignRole` 按 `roles:` 配置定角色（修 captain 写死 bug L54） | `SquadManager.assignRole` | 2LMG+3AR+1精确+1替补 精确生成 |
+| 2.4 生成入口传 `emwm_squad` 元数据 | `registerMob` L676 → bindWithEMWMConfig | EliteMobs 刷怪组可指定编制 |
+
+### 需求 3 ｜ 守卫据点行为【P0】
+| 子任务 | 代码落点 | 验收点 |
+|--------|----------|--------|
+| 3.1 `behavior: GUARD` 枚举 + `AIDecision` 加 GUARD | `ai/AIDecision` L3-8 | 枚举存在 |
+| 3.2 `AIState` 加 `homeLocation`/`leashDistance`/`aggroRadius` | `ai/AIState` L747 | 字段存在 |
+| 3.3 `executeGuardState`：驻守 home，敌入 aggroRadius 猎杀，超 leashDistance 回防，禁用撤退 | 新增方法 + tick 路由 L414 | 45 格内追击、超则回防 |
+| 3.4 模板字段 `behavior/guardPoint/guardRadius/aggroRadius/leashDistance` | `EMWMWeaponConfig` | 缺省不报错 |
+
+### 需求 6 ｜ 死亡掉货币弹【P0】
+| 子任务 | 代码落点 | 验收点 |
+|--------|----------|--------|
+| 6.1 `lootAmmoType`（per-template，对应 greyzone_ammos.yml key）+ `lootAmmoAmount:[min,max]` | `EMWMWeaponConfig` | 字段存在 |
+| 6.2 死亡注入：`onEntityDeath` L283 加 `event.getDrops().add(buildAmmoItem)` | `listeners/EliteMobSpawnListener.onEntityDeath` L280 | 掉落 7 种货币之一 |
+| 6.3 由 `lootAmmoType` 构建 WM 货币弹 ItemStack（从 WM ammo API 或 greyzone_ammos.yml 物品定义） | 新增 `buildAmmoItem(entity)` | 掉 greyzone_rifle_improv 8–24，不出现 WM 原生 RifleAmmo |
+| 6.4 白名单校验 + 区间熔断（防刷/通胀） | 6.3 内 | 数量受控 |
+
+### 需求 7 ｜ 护甲混用 ArmorMechanics【P1】
+| 子任务 | 代码落点 | 验收点 |
+|--------|----------|--------|
+| 7.1 `gear:` 块（4 槽 + dropGear） | `EMWMWeaponConfig` | 字段存在 |
+| 7.2 生成时 `entity.getEquipment().setXxx` 套 greyzone_armors.yml 装备 | `EliteMobSpawnListener` bind 末尾 | NPC 穿同款护甲 |
+| 7.3 `dropGear:true` 时死亡移交护甲掉落 | `onEntityDeath` | 掉落对应护甲 |
+| 7.4 **测试服验证**：AM 对非玩家实体实际减伤+加血 | 实验 | 验证通过则成本≈0 |
+
+### 需求 8 ｜ Boss 协同召唤【P2】
+| 子任务 | 代码落点 | 验收点 |
+|--------|----------|--------|
+| 8.1 监听 Boss 阶段事件 → 调编制生成 API | 新增 listener | 阶段 2 拉起 4 名协同 |
+| 8.2 协同单位继承需求 1 阵营判定 | 复用 FactionManager | 继承敌我 |
+
+---
+
+## 2. 里程碑顺序（依赖驱动）
+
+- **M1（地基 + 经济护栏）**：需求5（5.1–5.3）+ 需求1 基础设施（1.1–1.3）
+- **M2（阵营战争成立）**：需求1.4–1.5（目标选择接线）+ 需求4（4.1–4.3）
+- **M3（编制 + 据点）**：需求2（2.1–2.4）+ 需求3（3.1–3.4）
+- **M4（经济闭环）**：需求6（6.1–6.4）
+- **M5（装备 + 终战）**：需求7（7.1–7.4）+ 需求8（8.1–8.2）
+
+> 依赖：无 M1 则 M2 目标判定无意义；无 M4 则经济穿底。故 M1→M4 为硬序，M2/M3 可并行。
+
+---
+
+## 3. 第一刀：需求 5（已开工）
+
+见 `EMWMWeaponConfig` + `MobWeaponManager` 改动 + `MobWeaponManagerAmmoTest`。
+验收：连射 100 发，玩家货币弹药库存 0 变化（经济护栏落地）。
+
+---
+
+*对齐日期：2026-07-09 ｜ 下一步：逐里程碑交付，每需求带单测 + 测试服黑盒验证。*

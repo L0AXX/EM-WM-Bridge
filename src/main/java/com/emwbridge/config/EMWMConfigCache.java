@@ -200,6 +200,9 @@ public class EMWMConfigCache {
         if (section.contains("meleeSwitchHealthPercent")) {
             config.setMeleeSwitchHealthPercent(section.getDouble("meleeSwitchHealthPercent"));
         }
+        if (section.contains("consumeAmmo")) {
+            config.setConsumeAmmo(section.getBoolean("consumeAmmo"));
+        }
 
         // 投掷物AI参数
         if (section.contains("enableGrenadeAI")) {
@@ -735,6 +738,7 @@ public class EMWMConfigCache {
                 if (config.getMaxGrenadeCarry() != null) merged.setMaxGrenadeCarry(config.getMaxGrenadeCarry());
                 if (config.getAllowedGrenadeTypes() != null) merged.setAllowedGrenadeTypes(new ArrayList<>(config.getAllowedGrenadeTypes()));
                 if (config.getMeleeSwitchHealthPercent() != null) merged.setMeleeSwitchHealthPercent(config.getMeleeSwitchHealthPercent());
+                if (config.getConsumeAmmo() != null) merged.setConsumeAmmo(config.getConsumeAmmo());
 
                 // 用模板填充null字段
                 merged.mergeWithTemplate(templateConfig);

@@ -93,4 +93,30 @@ class EMWMWeaponConfigTest {
         assertEquals(8.0, individual.getFireRate(), 0.001);
         assertEquals(0.7, individual.getAggressiveness(), 0.001);
     }
+
+    @Test
+    @DisplayName("consumeAmmo 默认 true(有限,向后兼容)")
+    void consumeAmmoDefaultsToTrue() {
+        EMWMWeaponConfig c = new EMWMWeaponConfig();
+        assertTrue(c.isConsumeAmmoOrDefault(), "未设置时默认 true(有限弹药)");
+        assertNull(c.getConsumeAmmo(), "原始值应为 null");
+    }
+
+    @Test
+    @DisplayName("consumeAmmo=false → isConsumeAmmoOrDefault 为 false(经济护栏)")
+    void consumeAmmoFalseOverridesDefault() {
+        EMWMWeaponConfig c = new EMWMWeaponConfig();
+        c.setConsumeAmmo(false);
+        assertFalse(c.isConsumeAmmoOrDefault(), "显式 false → 无限弹药(经济护栏)");
+    }
+
+    @Test
+    @DisplayName("合并时 consumeAmmo 从模板继承(null 字段)")
+    void consumeAmmoInheritsFromTemplate() {
+        EMWMWeaponConfig template = new EMWMWeaponConfig();
+        template.setConsumeAmmo(false);
+        EMWMWeaponConfig individual = new EMWMWeaponConfig();
+        individual.mergeWithTemplate(template);
+        assertFalse(individual.isConsumeAmmoOrDefault(), "个体未设置时继承模板的 false");
+    }
 }

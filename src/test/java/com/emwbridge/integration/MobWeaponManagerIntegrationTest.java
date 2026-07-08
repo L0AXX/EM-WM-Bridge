@@ -169,6 +169,41 @@ class MobWeaponManagerIntegrationTest {
     }
 
     @Test
+    @DisplayName("需求5: consumeAmmo=false 连射弹药不递减(经济护栏)")
+    void testConsumeAmmoFalseKeepsAmmo() throws Exception {
+        wmApiMock.when(() -> WeaponMechanicsAPI.generateWeapon("AK_47"))
+                .thenReturn(createWeaponItem("AK_47"));
+        weaponManager.bindWeapon(mockEntity, "AK_47");
+
+        // 取出实例并将 consumeAmmo 置为 false（模拟 GreyZone 模板配置）
+        Field cacheField = MobWeaponManager.class.getDeclaredField("weaponCache");
+        cacheField.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Map<UUID, MobWeaponManager.MobWeaponInstance> cache =
+                (Map<UUID, MobWeaponManager.MobWeaponInstance>) cacheField.get(weaponManager);
+        MobWeaponManager.MobWeaponInstance instance = cache.get(mockEntity.getUniqueId());
+        assertNotNull(instance, "绑定后实例应存在");
+        instance.setConsumeAmmo(false);
+        assertFalse(instance.consumesAmmo(), "consumeAmmo 应为 false");
+
+        int ammoBefore = instance.getCurrentAmmo();
+        assertTrue(ammoBefore > 0, "初始弹药应大于0");
+        org.bukkit.Location target = new org.bukkit.Location(mock(org.bukkit.World.class), 10, 64, 10);
+
+        // 连射 100 发：每次重置射击冷却(lastShotTime=0)以绕过 fireRate 限流
+        Field lastShotField = MobWeaponManager.MobWeaponInstance.class.getDeclaredField("lastShotTime");
+        lastShotField.setAccessible(true);
+        for (int i = 0; i < 100; i++) {
+            lastShotField.set(instance, 0L);
+            weaponManager.shoot(mockEntity, target);
+        }
+
+        // 验收：AI 自有弹药(emwm_ammo)不递减；玩家货币弹药本就不经此路径(WM shoot 无弹药参)
+        assertEquals(ammoBefore, instance.getCurrentAmmo(), "无限弹药: 连射100发 emwm_ammo 不应递减");
+        assertEquals(ammoBefore, weaponManager.getCurrentAmmo(mockEntity), "通过 Manager 读取的弹药也应不变");
+    }
+
+    @Test
     @DisplayName("空弹匣射击 → 返回 false")
     void testEmptyMagazineCannotShoot() throws Exception {
         // 创建一个弹药为0的实例直接放入缓存
