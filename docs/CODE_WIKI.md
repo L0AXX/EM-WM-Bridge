@@ -164,7 +164,7 @@ com.emwbridge
 
 ### 3.1 主插件入口
 
-#### `EMWMBridge` [主类](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/EMWMBridge.java)
+#### `EMWMBridge` [主类](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/EMWMBridge.java)
 
 | 属性 | 说明 |
 |------|------|
@@ -198,7 +198,7 @@ com.emwbridge
 
 ### 3.2 管理器层 (managers)
 
-#### `MobWeaponManager` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/managers/MobWeaponManager.java)
+#### `MobWeaponManager` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/managers/MobWeaponManager.java)
 
 怪物武器生命周期管理的核心类，维护 `ConcurrentHashMap<UUID, MobWeaponInstance>` 武器缓存。
 
@@ -230,7 +230,7 @@ com.emwbridge
 | `baseSpread / adsSpreadMultiplier` | 基础散布 / ADS 散布倍率 |
 | `canShoot()` | 综合判断：未损坏、弹药充足、未换弹、冷却已过 |
 
-#### `TarkovAIManager` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/managers/TarkovAIManager.java)
+#### `TarkovAIManager` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/managers/TarkovAIManager.java)
 
 AI 子系统桥接层，对外暴露 API，内部委托给 `TarkovAIEngine`。
 
@@ -241,7 +241,7 @@ AI 子系统桥接层，对外暴露 API，内部委托给 `TarkovAIEngine`。
 - `Tactic`: BERSERKER / SUPPRESSING / BARRAGE / PRECISE / PEEKING / STALKING / SNIPING
 - `FireMode`: SINGLE / BURST / AUTO
 
-#### `ExtremeEventManager` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/managers/ExtremeEventManager.java)
+#### `ExtremeEventManager` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/managers/ExtremeEventManager.java)
 
 极限事件管理，维护每个实体的 `ExtremeState`（受伤次数、恐慌等级、暴露时间等）。
 
@@ -256,7 +256,7 @@ AI 子系统桥接层，对外暴露 API，内部委托给 `TarkovAIEngine`。
 
 **速度/射速修正**: `getSpeedModifier()` / `getFireRateModifier()`
 
-#### `ConfigManager` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/managers/ConfigManager.java)
+#### `ConfigManager` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/managers/ConfigManager.java)
 
 配置加载、迁移、校验。
 
@@ -266,15 +266,29 @@ AI 子系统桥接层，对外暴露 API，内部委托给 `TarkovAIEngine`。
 | `migrateConfig(fromVersion)` | 备份旧配置 → 合并新键 → 保存 |
 | `validateConfig()` | 补全缺失的必要字段（debug、tier-settings、extreme-events） |
 
-#### `FeatureManager` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/managers/FeatureManager.java)
+#### `FeatureManager` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/managers/FeatureManager.java)
 
-功能清单管理，启动时打印 9 大功能域的 ✅/⬜ 状态表格。
+功能清单管理，启动时以表格形式打印 9 大功能域的 ✅/⬜ 状态。
+
+**功能分类**（总计 50+ 功能项）:
+
+| 分类 | 关键功能 |
+|------|----------|
+| 武器系统 | 武器绑定、射击、弹药系统、自动换弹、耐久度、武器故障、WM 参数读取、武器池 |
+| AI 决策系统 | 目标选择、视线检测、反应延迟、8 种战斗状态、决策优先级、智能寻敌 |
+| 战术行为 | BERSERKER/SUPPRESSING/BARRAGE/PRECISE/PEEKING/STALKING 等 7 种战术 + 掩体寻找、撤退换弹、侧翼移动 |
+| Tier 差异化 | Scav/PMC/Boss 各 13 个独立参数（射速/精度/反应延迟/射程/开镜/开火模式/激进度等） |
+| 极限事件 | Panic Mode、Adrenaline、Luck Shot、Tactical Mistake |
+| 配置系统 | 版本控制、自动迁移、默认值补全、配置备份 |
+| DEBUG 系统 | 4 级分级、实体级调试、计数器系统、防刷屏 |
+| 命令系统 | `/emwm reload/debug/stats/version/track/info` |
+| 事件系统 | MobWeaponShootEvent、TarkovEvent、Metadata 通信、Lua 元数据支持 |
 
 ---
 
 ### 3.3 AI 子系统 (ai)
 
-#### `TarkovAIEngine` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/ai/engine/TarkovAIEngine.java)
+#### `TarkovAIEngine` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/ai/engine/TarkovAIEngine.java)
 
 AI 引擎主循环，是 AI 子系统的核心调度器。
 
@@ -308,7 +322,7 @@ TarkovAIEngine (主循环, 每 aiTickRate tick 执行)
 - **独立 AI 模式** (默认): 使用 Bukkit/Folia 定时器 `runTaskTimer`，每 `aiTickRate` tick 执行
 - **EliteMobs 事件驱动模式**: 由 EliteMobs 事件触发，不启动定时器
 
-#### `AIVisionManager` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/ai/perception/AIVisionManager.java)
+#### `AIVisionManager` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/ai/perception/AIVisionManager.java)
 
 视觉+听觉综合感知管理器，核心数据结构：
 
@@ -328,7 +342,7 @@ primaryTargetMap:  Map<AI_UUID, Player_UUID>
 | `getAlertStage(aiUuid, playerUuid)` | 获取当前警戒阶段 |
 | `getPrimaryTarget(aiUuid)` | 获取首要目标 UUID |
 
-#### `VisualPerception` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/ai/perception/VisualPerception.java)
+#### `VisualPerception` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/ai/perception/VisualPerception.java)
 
 视觉感知引擎，基于身体部位射线检测的局部暴露计算。
 
@@ -347,7 +361,7 @@ primaryTargetMap:  Map<AI_UUID, Player_UUID>
 
 **射线检测**: 头/躯干/腿三点射线，`FOLIAGE_MATERIALS`（树叶、草、藤蔓等）不阻断但累计衰减，固体方块阻断。
 
-#### `AuditoryPerception` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/ai/perception/AuditoryPerception.java)
+#### `AuditoryPerception` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/ai/perception/AuditoryPerception.java)
 
 听觉感知引擎，基于 SoundType 分级传播 + 方块材质衰减。
 
@@ -358,7 +372,7 @@ primaryTargetMap:  Map<AI_UUID, Player_UUID>
 - 方向一致性加成：3 秒内同方向连续声音 +5.0 曝光
 - 脚步冷却：800ms 去重
 
-#### `AlertStage` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/ai/perception/AlertStage.java)
+#### `AlertStage` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/ai/perception/AlertStage.java)
 
 三阶段警戒状态机：
 
@@ -370,7 +384,7 @@ primaryTargetMap:  Map<AI_UUID, Player_UUID>
 
 **全局仇恨缓存**: RED 状态进入时记录目标 UUID + 最后坐标 + 进入时间，脱离 RED 时清除。
 
-#### `TarkovTactics` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/ai/combat/TarkovTactics.java)
+#### `TarkovTactics` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/ai/combat/TarkovTactics.java)
 
 战术行为控制器，参照 EFT 0.16 AI 特征实现。
 
@@ -398,7 +412,7 @@ primaryTargetMap:  Map<AI_UUID, Player_UUID>
 
 **`TacticalAction` 枚举**: HOLD / THROW_FRAG / THROW_FLASH / THROW_SMOKE / FLANK / RETREAT / RUSH
 
-#### `AimConvergenceManager` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/ai/combat/AimConvergenceManager.java)
+#### `AimConvergenceManager` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/ai/combat/AimConvergenceManager.java)
 
 瞄准收敛管理，控制 AI 射击精度随时间提升。
 
@@ -408,7 +422,7 @@ primaryTargetMap:  Map<AI_UUID, Player_UUID>
 
 **tier 初始延迟**: scav 1.5s / pmc 0.9s / boss 0.5s / cultist 1.2s
 
-#### `CoverMovement` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/ai/combat/CoverMovement.java)
+#### `CoverMovement` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/ai/combat/CoverMovement.java)
 
 战术移动控制器。
 
@@ -425,7 +439,7 @@ primaryTargetMap:  Map<AI_UUID, Player_UUID>
 | `moveToNearestCover(entity, target, maxDist)` | 寻找最近掩体并移动 |
 | `repositionAfterBurst(entity, target)` | 连发后走位：掩体后探头横移，无掩体沿枪线移动 |
 
-#### `ThrowableManager` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/ai/combat/ThrowableManager.java)
+#### `ThrowableManager` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/ai/combat/ThrowableManager.java)
 
 投掷物管理器，**不破坏地形**，纯粒子 + 直接伤害实现。
 
@@ -443,15 +457,32 @@ primaryTargetMap:  Map<AI_UUID, Player_UUID>
 - 预判目标位置（根据速度偏移 1.5s）
 - 冷却时间：破片 15s / 闪光 20s / 烟雾 25s
 
-#### `FactionManager` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/ai/faction/FactionManager.java)
+#### `FactionManager` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/ai/faction/FactionManager.java)
 
 阵营管理，使用 `HostilityMatrix` 判定实体间敌友关系。
 
-**阵营**: AI_SCAV / AI_PMC / AI_BOSS / AI_CULTIST / PLAYER_SCAV / PLAYER_PMC
+**阵营**: `AI_SCAV` / `AI_PMC` / `AI_BOSS` / `AI_CULTIST` / `PLAYER_SCAV` / `PLAYER_PMC`
 
 **中立转敌对条件**: 距离 < 3 格或被直接攻击
 
-#### `PersonalityType` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/ai/personality/PersonalityType.java)
+#### `HostilityMatrix` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/ai/faction/HostilityMatrix.java)
+
+6×6 阵营敌意矩阵，使用 `EnumMap<TarkovFaction, Map<TarkovFaction, Relation>>` 实现。
+
+**Relation** 枚举: `HOSTILE` / `NEUTRAL` / `FRIENDLY`
+
+**阵营关系表** (行=自身, 列=目标):
+
+| 自身 \\ 目标 | PLAYER_PMC | PLAYER_SCAV | AI_SCAV | AI_PMC | BOSS | CULTIST |
+|-------------|-----------|-----------|-------|--------|-------|---------|
+| **AI_SCAV** | HOSTILE | NEUTRAL | FRIENDLY | **80% HOSTILE** | HOSTILE | HOSTILE |
+| **AI_PMC** | HOSTILE | NEUTRAL | **80% HOSTILE** | FRIENDLY | HOSTILE | HOSTILE |
+| **BOSS** | HOSTILE | HOSTILE | HOSTILE | HOSTILE | FRIENDLY | HOSTILE |
+| **CULTIST** | HOSTILE | HOSTILE | HOSTILE | HOSTILE | HOSTILE | FRIENDLY |
+
+**特殊机制**: AI_SCAV ↔ AI_PMC 之间 80% 概率为 HOSTILE, 20% 概率为 NEUTRAL（模拟塔科夫中 scav 与 pmc 的不确定敌对关系）。
+
+#### `PersonalityType` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/ai/personality/PersonalityType.java)
 
 8 种塔科夫 AI 性格，每种有独立的 (aggressiveness, coverPreference, retreatHpThreshold) 三元组：
 
@@ -468,7 +499,32 @@ primaryTargetMap:  Map<AI_UUID, Player_UUID>
 
 **决策权重**: `getAttackWeight()` / `getDefendWeight()` / `getAmbushWeight()` / `getRetreatWeight()`
 
-#### `SquadManager` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/ai/squad/SquadManager.java)
+#### `PersonalityManager` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/ai/personality/PersonalityManager.java)
+
+性格分配与决策引擎，维护 `ConcurrentHashMap<UUID, PersonalityType>` 实体→性格映射。
+
+**核心方法**:
+| 方法 | 职责 |
+|------|------|
+| `reload(config)` | 从 config.yml 加载 `personality.tier-weights` 权重表 |
+| `rollByTier(tier)` | 按 tier 加权随机分配性格（scav=胆小, pmc=平衡, boss=激进, cultist=埋伏） |
+| `assignPersonality(uuid, type)` | 手动指定实体性格 |
+| `decide(uuid, hpRatio, exposure)` | **性格决策入口**：综合 hpRatio + exposure 计算攻击/防守/埋伏/撤退权重 |
+
+**决策逻辑**:
+1. 血量 < 15% → 强制 RETREAT
+2. 比较 4 种决策权重的最大值，选择最高的动作
+3. 血量极低时撤退权重压倒一切
+
+**tier 性格分布参考**:
+| tier | 主力性格 (≥30%) | 次要性格 |
+|------|----------------|----------|
+| scav | COWARD(35%), CAUTIOUS(30%) | LOOTER(25%) |
+| pmc | CAUTIOUS(30%), FLANKER(20%) | CAPTAIN(15%), SUPPRESSOR(15%) |
+| boss | CAPTAIN(40%), RECKLESS(25%) | SUPPRESSOR(20%), FLANKER(15%) |
+| cultist | AMBUSH(40%), FLANKER(30%) | CAUTIOUS(30%) |
+
+#### `SquadManager` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/ai/squad/SquadManager.java)
 
 小队系统，最大 5 人，20 格内自动组队。
 
@@ -479,13 +535,54 @@ primaryTargetMap:  Map<AI_UUID, Player_UUID>
 
 **角色分配**: `SquadRole` 枚举（ASSAULT / SUPPORT / SNIPER / RECON / MEDIC），CAPTAIN 性格自动担任队长。
 
-#### 其他 AI 组件
+#### `AIEventDispatcher` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/ai/events/AIEventDispatcher.java)
 
-| 类 | 职责 |
-|----|------|
-| `AIEventDispatcher` | 事件总线，支持 SIGHT/SOUND/HOSTILE_LOCK/FLASH_BLIND 事件广播 |
-| `SoundEventManager` | 声音事件管理，监听玩家枪声、脚步、爆炸等，触发 AI 听觉仇恨 |
-| `AIDecision` | 枚举：ENGAGE / DEFEND / AMBUSH / RETREAT |
+AI 事件总线，基于观察者模式实现跨模块事件广播。
+
+**事件类型** (`EventType` 枚举):
+| 类型 | 触发时机 | 数据载荷 |
+|------|----------|----------|
+| `SIGHT` | 视觉发现目标玩家 | aiEntityUuid, targetPlayerUuid, exposure 值 |
+| `SOUND` | 听觉检测到声源 | aiEntityUuid, sourcePlayerUuid, soundLoc, loudness |
+| `HOSTILE_LOCK` | 进入 HOSTILE 锁定状态 | aiEntityUuid, targetPlayerUuid, targetLoc |
+| `FLASH_BLIND` | 被闪光弹致盲 | aiEntityUuid（无目标信息） |
+
+**注册机制**: `register(EventType, Consumer<AIEvent>)` 为每种事件类型注册消费者列表，`dispatch(AIEvent)` 按类型分发。
+
+**AIEvent 内部类**:
+- `type()` — 事件类型
+- `aiEntityUuid()` — 触发事件的 AI 实体 UUID
+- `targetPlayerUuid()` — 关联目标玩家 UUID
+- `location()` — 事件位置
+- `value()` — 数值载荷（exposure / loudness 等）
+
+#### `SoundEventManager` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/ai/sound/SoundEventManager.java)
+
+全局声音事件管理器，实现 `Listener` 接口监听 MC 原生事件，生成 `SoundSource` 并广播至附近 AI。
+
+**监听的事件**:
+| MC 事件 | 映射为 SoundType | 说明 |
+|---------|-----------------|------|
+| `ExplosionPrimeEvent` | EXPLOSION | 爆炸声源, loudness=1.0 |
+| `EntityDamageEvent` | THROWABLE | 实体受伤声, loudness=0.5, 不可穿墙 |
+| `BlockBreakEvent` | THROWABLE | 方块破坏声, loudness=0.4 |
+| `PlayerInteractEvent` | DOOR | 门/活板门交互, loudness=0.8 |
+| `PlayerMoveEvent` | FOOTSTEP_WALK/SNEAK/SPRINT | 玩家脚步, 冷却 800ms 去重 |
+
+**外部触发接口**:
+- `onGunshot(Location, boolean suppressed)` — 武器射击声（外部系统调用，如 WeaponMechanics）
+- `onThrowableLand(Location)` — 投掷物落地声
+- `broadcastCustomSound(Location, SoundType, double)` — 通用声源广播
+
+**广播流程**: 收集附近 `emwm_ai_enabled` metadata 的 LivingEntity → 委托 `AIVisionManager.broadcastSound()` 统一处理。
+
+#### `AIDecision` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/ai/AIDecision.java)
+
+AI 顶层决策枚举，4 种状态：
+- `ENGAGE` — 主动进攻
+- `DEFEND` — 防守/架枪
+- `AMBUSH` — 埋伏/等待
+- `RETREAT` — 战术撤退
 
 ---
 
@@ -505,7 +602,7 @@ primaryTargetMap:  Map<AI_UUID, Player_UUID>
 └──────────────────────────────────────────┘
 ```
 
-#### `EMWMConfigCache` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/config/EMWMConfigCache.java)
+#### `EMWMConfigCache` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/config/EMWMConfigCache.java)
 
 配置缓存管理器，核心数据结构：
 
@@ -531,7 +628,7 @@ templateInheritance: Map<文件名, 模板名>              # 继承关系
 - `fireRateTicks` → `shooting.fire-rate`（反向换算）
 - `maxRange` / `spread` / `damageMultiplier` 等
 
-#### `EMWMWeaponConfig` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/config/EMWMWeaponConfig.java)
+#### `EMWMWeaponConfig` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/config/EMWMWeaponConfig.java)
 
 武器配置数据模型，所有字段使用包装类型（Integer/Double/Boolean），null 表示未设置。
 
@@ -557,7 +654,7 @@ templateInheritance: Map<文件名, 模板名>              # 继承关系
 - `mergeWithTemplate(template)` — null 字段从模板继承
 - `isFieldExplicitlySet(fieldName)` — 判断字段是否显式设置（用于三级优先级）
 
-#### `WeaponMetaCache` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/config/WeaponMetaCache.java)
+#### `WeaponMetaCache` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/config/WeaponMetaCache.java)
 
 全局武器元数据预缓存，启动时从 WM 读取所有武器参数到内存。
 
@@ -566,11 +663,30 @@ templateInheritance: Map<文件名, 模板名>              # 继承关系
 
 **延迟重试**: 首轮加载失败的武器，60 tick 后重试（等待 WM 就绪）。
 
+#### `LuaPowerParser` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/config/LuaPowerParser.java)
+
+当怪物既无 EMWM 显式配置也无全局模板时，作为**最后降级策略**，从 EliteMobs 的 LuaPower 脚本中扫描 WM 武器参数。
+
+**工作流程**:
+1. 从怪物 yml 的 `powers:` 列表获取所有 Lua 脚本名
+2. 尝试 6 种路径模式查找 `.lua` / `.yml` 文件（`powers/`, `content/powers/`, `custombosses/powers/`）
+3. 正则解析 Lua 中的 `weapon=`, `fire_rate=`, `range=`, `spread=`, `damage=` 等参数
+4. 解析结果写入 `EMWMWeaponConfig` 并加入 `luaCache` 缓存
+
+**正则模式**:
+- `weapon\s*=\s*["']([^"']+)["']` — 提取武器名称
+- `fire_rate\s*=\s*(\d+\.?\d*)` — 射速
+- `range\s*=\s*(\d+)` — 射程（`maxRange = range + 15` 兜底）
+- `spread\s*=\s*(\d+\.?\d*)` — 散布精度
+- `damage\s*=\s*(\d+\.?\d*)` — 伤害 → 映射为 `aggressiveness`（`min(1.0, damage/20)`）
+
+**限制**: 仅能提取基础参数，不支持投掷物/特殊能力等复杂配置。
+
 ---
 
 ### 3.5 事件监听器 (listeners)
 
-#### `EliteMobSpawnListener` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/listeners/EliteMobSpawnListener.java)
+#### `EliteMobSpawnListener` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/listeners/EliteMobSpawnListener.java)
 
 怪物生成监听，核心入口。
 
@@ -587,23 +703,23 @@ templateInheritance: Map<文件名, 模板名>              # 继承关系
 
 **防覆盖机制**: 绑定后 20 tick 检查主手，若被 EliteMobs 覆盖则重新绑定。
 
-#### `EliteMobCombatListener` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/listeners/EliteMobCombatListener.java)
+#### `EliteMobCombatListener` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/listeners/EliteMobCombatListener.java)
 
 怪物战斗监听，处理 `EntityTargetLivingEntityEvent`。
 
 **事件驱动射击**: 每 4 tick 检查目标，有视线时按射速射击，弹匣空时自动换弹。
 
-#### `PlayerShootListener` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/listeners/PlayerShootListener.java)
+#### `PlayerShootListener` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/listeners/PlayerShootListener.java)
 
 玩家射击监听，通过反射注册 WeaponMechanics `PlayerShootEvent`，触发 AI 听觉仇恨。
 
 **消音检测**: 武器 ID 包含 "suppress"/"silent"/"quiet" 判定为消音。
 
-#### `EMCommandListener` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/listeners/EMCommandListener.java)
+#### `EMCommandListener` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/listeners/EMCommandListener.java)
 
 监听 `/elitemobs reload` 和 `/em reload`，触发 EMWM 配置缓存热重载（延迟 10 tick）。
 
-#### `EMWMReloadListener` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/listeners/EMWMReloadListener.java)
+#### `EMWMReloadListener` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/listeners/EMWMReloadListener.java)
 
 通过反射监听 EliteMobs 重载事件，触发配置缓存刷新。
 
@@ -620,7 +736,7 @@ templateInheritance: Map<文件名, 模板名>              # 继承关系
 
 ### 3.7 MechanicsCore 集成 (mechanics)
 
-#### `EMWMechanics` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/mechanics/EMWMechanics.java)
+#### `EMWMechanics` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/mechanics/EMWMechanics.java)
 
 MechanicsCore 自定义 Mechanic/Targeter 注册器。
 
@@ -637,7 +753,7 @@ MechanicsCore 自定义 Mechanic/Targeter 注册器。
 
 ### 3.8 工具类 (utils)
 
-#### `DebugManager` [源码](file:///c:/Users/Administrator/.trae-cn/worktrees/EM-WM-Bridge/feat-generate-code-wiki-doc-dKBhzE/src/main/java/com/emwbridge/utils/DebugManager.java)
+#### `DebugManager` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/utils/DebugManager.java)
 
 4 级调试管理器：OFF(0) / BASIC(1) / DETAILED(2) / TRACE(3)
 
@@ -646,6 +762,40 @@ MechanicsCore 自定义 Mechanic/Targeter 注册器。
 - 实体级调试：可针对特定实体设置独立 DEBUG 等级
 - 计数器系统：`incrementCounter()` / `getCounter()` 统计事件次数
 - 战术/事件/性能专项调试方法
+
+#### `SoundPropagationUtils` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/utils/SoundPropagationUtils.java)
+
+声学传播计算工具类（纯静态方法，禁止实例化）。
+
+| 方法 | 公式 | 说明 |
+|------|------|------|
+| `calculateSoundRadius(baseRadius, suppressor)` | 消音器时 `×0.3` | 计算有效听觉半径 |
+| `getAwarenessChance(distance, radius, awareness)` | `(1 - dist/radius) × awareness` | 距离衰减的察觉概率 |
+| `getAlertLevel(distance, radius)` | 三级分段 | 返回 `CHARGE`(<30%) / `ALERT`(<60%) / `SEARCH`(≥60%) |
+| `calculateSoundDirection(player, source)` | `source - player.eye` 归一化 | 计算声源方向向量 |
+
+**AlertLevel 枚举**:
+| 等级 | 距离比 | 响应倍率 |
+|------|--------|----------|
+| CHARGE | < 30% | 1.0（立即反应） |
+| ALERT | 30%~60% | 0.6 |
+| SEARCH | > 60% | 0.3（仅搜索方向） |
+
+#### `TacticalUtils` [源码](file:///f:/LOAXXjavaproject/EM-WM-Bridge/src/main/java/com/emwbridge/utils/TacticalUtils.java)
+
+战术辅助工具类（纯静态方法，禁止实例化）。
+
+| 方法 | 说明 |
+|------|------|
+| `findCoverLocation(entity, target, minDist, maxDist)` | 8 方向扫描掩体位置：远离目标方向 ±45° 辐射搜索，优先找有实体方块的掩体 |
+| `hasLineOfSight(from, to)` | Bresenham 步进射线检测，步长 0.5 格，遇固体方块阻断 |
+| `isInWorldBorder(loc, world)` | 世界边界检测（边界 + 16 格缓冲区） |
+
+**掩体搜索算法**:
+1. 计算远离目标的方向向量
+2. 8 方向（每 45°）辐射扫描，距离从 minDist 递增至 maxDist（步长 2 格）
+3. 检查候选点：脚部和头部必须是空气、脚下方块必须为实体、必须遮挡目标视线
+4. 未找到时安全兜底：直接远离目标 minDist 格
 
 ---
 
@@ -713,6 +863,9 @@ WeaponMechanics ─► WeaponMetaCache ──► NativeWeaponData
 | 观察者 (Observer) | `AIEventDispatcher` 事件总线 |
 | 缓存 (Cache) | `WeaponMetaCache` 预缓存 + `EMWMConfigCache` 配置缓存 |
 | 模板方法 | `VisualPerception.calculate()` 8 步固定流程 |
+| 外观 (Facade) | `TarkovAIManager` 统一封装 AI 子系统所有能力 |
+| 组件 (Component) | `TarkovAIEngine` 组合 8 个子模块（感知/战术/瞄准/移动等） |
+| 工厂 (Factory) | `EMWMConfigCache` 根据配置类型创建 EMWMWeaponConfig |
 
 ---
 
@@ -770,7 +923,20 @@ EMWMBridge (主类)
 
 ## 6. 项目运行方式
 
-### 6.1 构建
+### 6.1 构建配置
+
+| 文件 | 说明 |
+|------|------|
+| [build.gradle](file:///f:/LOAXXjavaproject/EM-WM-Bridge/build.gradle) | Groovy DSL 构建脚本，JDK 21, JaCoCo 覆盖率 ≥ 70%, deploy 任务 |
+| [settings.gradle](file:///f:/LOAXXjavaproject/EM-WM-Bridge/settings.gradle) | 项目名称 `EM-WM-Bridge` |
+| [gradle/libs.versions.toml](file:///f:/LOAXXjavaproject/EM-WM-Bridge/gradle/libs.versions.toml) | 版本目录（Paper API, JUnit, Mockito 等版本管理） |
+
+**本地依赖**（compileOnly + testImplementation）:
+- `libs/WeaponMechanics-4.3.0.jar`
+- `libs/MechanicsCore-4.3.0.jar`
+- `libs/EliteMobs.jar`
+
+### 6.2 构建
 
 ```bash
 # 项目根目录
@@ -781,29 +947,55 @@ cd EM-WM-Bridge
 
 # 构建产物
 # build/libs/EM-WM-Bridge-1.3.0.jar
-```
 
-### 6.2 部署
-
-1. 将 `EM-WM-Bridge-1.3.0.jar` 放入服务端 `plugins/` 目录
-2. 确保已安装 `EliteMobs` 和 `WeaponMechanics` 插件
-3. 启动服务器，插件自动生成 `config.yml` 到 `plugins/EM-WM-Bridge/`
-4. （可选）创建 `plugins/EM-WM-Bridge/emwm_mob_templates.yml` 配置全局兵种模板
-5. 在 EliteMobs 怪物配置中添加 `emwm:` 配置段
-
-### 6.3 测试
-
-```bash
-# 运行全部测试
+# 运行全部测试 + 生成覆盖率报告
 ./gradlew test
 
 # 查看覆盖率报告
 # build/reports/jacoco/test/html/index.html
 
-# 覆盖率门禁
-# 要求指令覆盖率 ≥ 70%
+# 覆盖率门禁（指令覆盖率 ≥ 70%）
 ./gradlew jacocoTestCoverageVerification
 ```
+
+### 6.3 部署
+
+```bash
+# 编译 + 自动部署到测试服务器 plugins 目录
+./gradlew deploy
+
+# 编译 + 部署 + 提示启动测试命令
+./gradlew deployAndTest
+```
+
+**手动部署步骤**:
+1. 将 `build/libs/EM-WM-Bridge-1.3.0.jar` 放入服务端 `plugins/` 目录
+2. 确保已安装 `EliteMobs` 和 `WeaponMechanics` 插件
+3. 启动服务器，插件自动生成 `config.yml` 到 `plugins/EM-WM-Bridge/`
+4. （可选）创建 `plugins/EM-WM-Bridge/emwm_mob_templates.yml` 配置全局兵种模板
+5. 在 EliteMobs 怪物配置中添加 `emwm:` 配置段
+
+### 6.4 真机黑盒测试
+
+[test-server.ps1](file:///f:/LOAXXjavaproject/EM-WM-Bridge/test-server.ps1) 提供完整的 PowerShell 黑盒测试脚本：
+
+```powershell
+# 先部署插件
+./gradlew deploy
+
+# 运行真机测试（自动启动 Paper 服务器、执行测试场景、生成报告、关闭服务器）
+./test-server.ps1
+```
+
+**测试场景**:
+| 场景 | 验证内容 |
+|------|----------|
+| 插件加载 | `emwm version` 返回版本信息 |
+| 配置热重载 | `emwm reload` 返回成功消息 |
+| 统计命令 | `emwm stats` 返回统计信息 |
+| 配置缓存 | `emwm info` 返回缓存详情 |
+| 启动无错误 | 日志中无 EM-WM 相关 ERROR/Exception |
+| Scav 武器绑定 | 生成怪物后日志检测武器绑定信息 |
 
 **测试目录结构**:
 ```
@@ -956,14 +1148,17 @@ templates:
 | `ConfigManagerTest` | 配置管理 |
 | `ExtremeEventManagerTest` | 极限事件 |
 | `MobWeaponInstanceTest` | 武器实例 |
-| `MobWeaponManagerTest` | 武器管理 |
+| `MobWeaponManagerTest` | 武器管理（含武器绑定参数动态传递） |
+| `MobWeaponManagerIntegrationTest` | 武器管理器集成测试（完整生命周期） |
+| `MobWeaponInstanceStateTest` | 武器实例状态迁移测试 |
+| `IntegrationTestBase` | 集成测试基类（公共初始化） |
 | `DebugManagerTest` | 调试管理 |
 | `SoundPropagationUtilsTest` | 声音传播 |
 | `TacticalUtilsTest` | 战术工具 |
-| `HarnessIntegrationTest` | 集成测试 |
-| `PerceptionHarness` | 感知系统 Harness |
-| `ScenarioHarness` | 场景 Harness |
+| `HarnessIntegrationTest` | 集成测试 Harness |
+| `PerceptionHarness` | 感知系统 Harness（视觉+听觉场景测试） |
+| `ScenarioHarness` | 场景 Harness（多情境组合测试） |
 
 ---
 
-> **文档版本**: 1.0 | **最后更新**: 2026-07-02 | **对应插件版本**: 1.3.0
+> **文档版本**: 2.0 | **最后更新**: 2026-07-02 | **对应插件版本**: 1.3.0

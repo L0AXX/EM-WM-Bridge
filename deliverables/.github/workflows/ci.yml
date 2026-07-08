@@ -1,0 +1,185 @@
+# ============================================================
+# EM-WM-Bridge CI/CD Pipeline
+# ============================================================
+# 触发条件: push 到 main/develop 分支，或任意 PR
+# 流水线: compile → test → coverage check → build → upload artifact
+# ============================================================
+
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+# 同一分支的新 push 取消旧的运行
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================
+  # Job 1: 编译 + 单元测试 + 覆盖率检查
+  # ============================================================
+  test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # --- Checkout ---
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # --- JDK 21 ---
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      # --- Gradle 缓存 ---
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      # --- 赋予 gradlew 执行权限 ---
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+        # 注意: 项目目前只有 gradlew.bat (Windows)。
+        # 如果没有 unix gradlew，需要运行: gradle wrapper --gradle-version 8.x
+        # 或在项目中添加 gradlew 脚本。
+
+      # --- 编译 ---
+      - name: Compile
+        run: ./gradlew compileJava compileTestJava --no-daemon
+
+      # --- 单元测试 + JaCoCo 报告 ---
+      - name: Test
+        run: ./gradlew test --no-daemon
+
+      # --- 覆盖率门禁检查 ---
+      - name: Coverage Verification
+        run: ./gradlew jacocoTestCoverageVerification --no-daemon
+
+      # --- 上传测试报告 ---
+      - name: Upload Test Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: build/reports/tests/test/
+          retention-days: 14
+
+      # --- 上传覆盖率报告 ---
+      - name: Upload Coverage Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: build/reports/jacoco/test/html/
+          retention-days: 14
+
+      # --- 上传覆盖率 XML (供 Codecov 等工具解析) ---
+      - name: Upload Coverage XML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: build/reports/jacoco/test/jacocoTestReport.xml
+          retention-days: 14
+
+  # ============================================================
+  # Job 2: 构建 JAR (依赖 Job 1 通过)
+  # ============================================================
+  build:
+    name: Build JAR
+    runs-on: ubuntu-latest
+    needs: test
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build JAR
+        run: ./gradlew jar --no-daemon
+
+      - name: Upload JAR Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EM-WM-Bridge-${{ github.sha }}
+          path: build/libs/EM-WM-Bridge-*.jar
+          retention-days: 30
+
+  # ============================================================
+  # Job 3: 真机集成测试 (手动触发，可选)
+  # ============================================================
+  # 需要 self-hosted runner 注册在测试服务器上
+  # 短期内可跳过此 Job，手动运行 test-server.ps1
+  integration-test:
+    name: Real Server E2E
+    runs-on: self-hosted  # 需要在测试服务器上注册 self-hosted runner
+    needs: build
+    if: github.ref == 'refs/heads/main'  # 仅 main 分支触发
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Download JAR Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: EM-WM-Bridge-${{ github.sha }}
+          path: build/libs/
+
+      - name: Deploy to Test Server
+        run: |
+          cp build/libs/EM-WM-Bridge-*.jar "F:/LOAXX Devlop CLI/GreyZone S_1.21.4JDK21/plugins/"
+        # 注意: 路径需要根据 self-hosted runner 的实际环境调整
+
+      - name: Run E2E Test
+        shell: pwsh
+        run: |
+          ./test-server.ps1 -ServerPath "F:\LOAXX Devlop CLI\GreyZone S_1.21.4JDK21"
+
+      - name: Upload E2E Test Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-log
+          path: "F:/LOAXX Devlop CLI/GreyZone S_1.21.4JDK21/logs/latest.log"
+          retention-days: 7

@@ -1,0 +1,277 @@
+# EM-WM-Bridge CI/CD Pipeline
+# Paper 1.21.4 / Folia 插件 — Java 21 + Gradle 9.5.1
+# 文档: deliverables/gstack/test-infra-cicd-strategy-2026-07-05.md
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    - cron: '0 2 * * *'  # 每日 UTC 02:00 nightly build
+  workflow_dispatch:      # 手动触发集成测试
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  # ========== 构建 + 测试 + 覆盖率 (pre-merge) ==========
+  build-and-test:
+    name: Build & Test (JDK 21)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.5.1'
+
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Compile
+        run: ./gradlew compileJava --no-daemon --stacktrace
+
+      - name: Run tests (L1 unit + L2 integration)
+        run: ./gradlew test --no-daemon --stacktrace
+
+      - name: Check coverage (>= 70%)
+        run: ./gradlew jacocoTestCoverageVerification --no-daemon --stacktrace
+
+      - name: Generate JaCoCo report
+        if: always()
+        run: ./gradlew jacocoTestReport --no-daemon
+
+      - name: Upload JaCoCo HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: build/reports/jacoco/test/html/
+          retention-days: 30
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: build/test-results/
+          retention-days: 14
+
+      - name: Build JAR
+        run: ./gradlew jar --no-daemon
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EM-WM-Bridge-${{ github.sha }}
+          path: build/libs/EM-WM-Bridge-*.jar
+          retention-days: 30
+
+      - name: Comment PR with coverage
+        if: github.event_name == 'pull_request'
+        run: |
+          COVERAGE=$(python3 -c "
+          import xml.etree.ElementTree as ET
+          tree = ET.parse('build/reports/jacoco/test/jacocoTestReport.xml')
+          root = tree.getroot()
+          for counter in root.findall('counter'):
+              if counter.get('type') == 'INSTRUCTION':
+                  missed = int(counter.get('missed'))
+                  covered = int(counter.get('covered'))
+                  total = missed + covered
+                  pct = (covered / total * 100) if total > 0 else 0
+                  print(f'{pct:.1f}')
+                  break
+          " 2>/dev/null || echo "N/A")
+
+          echo "## JaCoCo Coverage Report" > coverage_comment.md
+          echo "" >> coverage_comment.md
+          echo "**Instruction Coverage: ${COVERAGE}%** (gate: 70%)" >> coverage_comment.md
+          echo "" >> coverage_comment.md
+          echo "[Full HTML Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> coverage_comment.md
+
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --body-file coverage_comment.md \
+            || echo "Skipping PR comment (may not have permission)"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  # ========== Nightly 完整测试 ==========
+  nightly:
+    name: Nightly Full Test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.5.1'
+
+      - name: Run all tests (L1 + L2)
+        run: ./gradlew test --no-daemon --stacktrace
+
+      - name: Build JAR
+        run: ./gradlew jar --no-daemon
+
+      - name: Upload nightly JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: EM-WM-Bridge-nightly-${{ github.run_id }}
+          path: build/libs/EM-WM-Bridge-*.jar
+          retention-days: 90
+
+  # ========== Docker 集成测试 (手动触发) ==========
+  # 需要预先准备好包含 EliteMobs + WeaponMechanics + MechanicsCore 的 Docker 镜像
+  # 或将依赖插件放入 server-plugins/ 目录
+  integration-test:
+    name: Integration Test (Docker + RCON)
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download JAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: EM-WM-Bridge-${{ github.sha }}
+          path: ./plugin-jar/
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Prepare server directory
+        run: |
+          mkdir -p server/plugins server/data
+          # 部署 EM-WM-Bridge JAR
+          cp plugin-jar/EM-WM-Bridge-*.jar server/plugins/
+          # 依赖插件需要预先放置在 server-plugins/ 目录
+          # 或通过 secrets 下载
+          if [ -d server-plugins/ ]; then
+            cp server-plugins/*.jar server/plugins/
+            echo "已复制依赖插件:"
+            ls -la server/plugins/
+          else
+            echo "警告: server-plugins/ 目录不存在"
+            echo "集成测试需要 EliteMobs + WeaponMechanics + MechanicsCore"
+            echo "请将依赖 JAR 放入 server-plugins/ 目录后重新运行"
+            exit 1
+          fi
+
+      - name: Start Paper 1.21.4 server
+        run: |
+          docker run -d \
+            --name mc-server \
+            -p 25565:25565 \
+            -p 25575:25575 \
+            -e TYPE=PAPER \
+            -e VERSION=1.21.4 \
+            -e EULA=TRUE \
+            -e ENABLE_RCON=true \
+            -e RCON_PASSWORD=emwm_test \
+            -e MAX_MEMORY=3G \
+            -e ONLINE_MODE=false \
+            -e SPAWN_PROTECTION=0 \
+            -e DIFFICULTY=peaceful \
+            -v $(pwd)/server/plugins:/data/plugins \
+            itzg/minecraft-server:java21
+
+      - name: Wait for server ready
+        run: |
+          echo "等待 Paper 服务器启动..."
+          for i in $(seq 1 120); do
+            if docker logs mc-server 2>&1 | grep -q "Done ("; then
+              echo "服务器就绪! (等待 ${i}x5s)"
+              # 额外等待 15 秒确保所有插件加载完成
+              sleep 15
+              break
+            fi
+            if [ $i -eq 120 ]; then
+              echo "服务器启动超时 (600s)"
+              echo "=== 服务器日志 ==="
+              docker logs mc-server 2>&1 | tail -50
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Verify plugin loaded
+        run: |
+          # 先验证 EM-WM-Bridge 插件是否成功加载
+          docker logs mc-server 2>&1 | grep -q "EM-WM-Bridge 已启用" || {
+            echo "EM-WM-Bridge 插件未成功加载!"
+            echo "=== 服务器日志 ==="
+            docker logs mc-server 2>&1 | tail -50
+            exit 1
+          }
+          echo "EM-WM-Bridge 插件已加载"
+
+      - name: Run RCON black-box test
+        run: |
+          python3 tests/rcon_blackbox_test.py \
+            --host localhost \
+            --port 25575 \
+            --password emwm_test \
+            --timeout 60
+
+      - name: Upload server logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-logs-failed
+          path: |
+            server/data/logs/
+          retention-days: 7
+
+      - name: Stop server
+        if: always()
+        run: |
+          docker stop mc-server || true
+          docker rm mc-server || true
+
+  # ========== 手动触发的集成测试说明 ==========
+  # 触发方式: GitHub Actions → Integration Test → Run workflow
+  # 前置条件:
+  #   1. 在仓库根目录创建 server-plugins/ 目录
+  #   2. 将以下 JAR 放入该目录:
+  #      - EliteMobs.jar
+  #      - WeaponMechanics.jar (4.3.0+)
+  #      - MechanicsCore.jar (4.3.0+)
+  #   3. 在 .gitignore 中已排除 server-plugins/
+  #   4. 触发 workflow_dispatch
+
