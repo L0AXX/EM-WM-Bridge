@@ -281,6 +281,12 @@ public class TarkovAIEngine {
         }
 
         if (primaryTarget == null) {
+            // 需求1.4-1.5：无玩家目标时，按 GreyZone 阵营关系扫描最近的敌对 AI 实体并交战
+            LivingEntity aiTarget = selectHostileAITarget(entity, tierVisionRange, tierSoundRange);
+            if (aiTarget != null) {
+                engageAITarget(entity, aiTarget, state, hpRatio);
+                return;
+            }
             if (state.target != null) {
                 state.lastKnownLocation = state.target.getLocation().clone();
                 state.searchTicks = searchDurationTicks;
@@ -663,6 +669,50 @@ public class TarkovAIEngine {
         if (a == null || b == null || a.getWorld() == null || b.getWorld() == null) return Double.MAX_VALUE;
         if (!a.getWorld().equals(b.getWorld())) return Double.MAX_VALUE;
         return a.distance(b);
+    }
+
+    // ============ 需求1.4-1.5：跨阵营 AI 目标选择（GreyZone 阵营战争）============
+
+    /**
+     * 在视野/听觉范围内寻找最近的敌对 AI 实体（依据 GreyZone 阵营关系）。
+     * 仅当字符串阵营系统已配置（emwm_factions.yml）且自身已分配阵营时生效，否则返回 null。
+     */
+    private LivingEntity selectHostileAITarget(LivingEntity entity, double visionRange, double soundRange) {
+        if (!factionManager.isConfigured()) return null;
+        if (factionManager.getFactionId(entity.getUniqueId()) == null) return null;
+        double maxRange = Math.max(visionRange, soundRange) + 20;
+        LivingEntity best = null;
+        double bestDist = Double.MAX_VALUE;
+        for (LivingEntity candidate : entity.getWorld().getEntitiesByClass(LivingEntity.class)) {
+            if (candidate == entity || candidate.isDead() || !candidate.hasMetadata("emwm_ai_enabled")) continue;
+            if (factionManager.getFactionId(candidate.getUniqueId()) == null) continue;
+            if (!factionManager.isHostile(entity, candidate)) continue;
+            double d = safeDistance(entity.getLocation(), candidate.getLocation());
+            if (d < maxRange && d < bestDist) {
+                best = candidate;
+                bestDist = d;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * 对敌对 AI 目标的轻量交战：复用瞄准收敛与射击，暂不含玩家专属的掩体/投掷/极限事件战术。
+     * 玩家交战路径（executeTacticalAction）保持不变。
+     */
+    private void engageAITarget(LivingEntity entity, LivingEntity target, AIState state, double hpRatio) {
+        state.ticksSinceEngage++;
+        double distance = safeDistance(entity.getLocation(), target.getLocation());
+        // 轻量路径简化 LOS：近距离内视为有视线（详细通用射线检测留待后续增强）
+        boolean hasBodyLOS = distance < 60;
+        AimConvergenceManager.AimResult aim = aimConvergenceManager.update(
+                entity, target, hasBodyLOS, hasBodyLOS, distance, state.tier, false);
+        boolean ads = distance > hipfireRange;
+        if (hasBodyLOS && tactics.shouldShoot(entity.getUniqueId(), hpRatio, 1.0)) {
+            if (weaponManager.shoot(entity, aim.aimPoint, ads)) {
+                tactics.recordShot(entity.getUniqueId());
+            }
+        }
     }
 
     public void registerMob(LivingEntity entity, String tier) {

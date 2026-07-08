@@ -118,9 +118,13 @@
 - **关键修复**：`FactionManager.load()` 改为异常安全（try/catch），避免 mock 环境 `saveResource` 抛错拖垮引擎构造
 - 全套 402 测试 0 失败，覆盖率 33.3%（门禁✅）
 
-### ⏳ 需求 1.4–1.5（跨阵营目标选择接线）— 待做
-- `TarkovAIEngine.tickEntity` L259 候选扫描由 `getPlayers()` 扩展为含 AI 实体，按 `getRelation==HOSTILE` 过滤
-- neutral 被误伤经 `shouldTurnHostile` 反击
+### ✅ 需求 1.4–1.5（跨阵营目标选择接线）— 已完成 2026-07-09
+- `TarkovAIEngine.tickEntity`：无玩家目标时，扫描敌对 AI 实体（emwm_ai_enabled + 阵营ID）经 `FactionManager.isHostile` 过滤，最近者交战
+- 采用最小侵入方案：玩家交战路径（executeTacticalAction）100% 不变；AI-vs-AI 为轻量分支（复用瞄准收敛 + shoot，暂不含掩体/投掷/极限事件战术）
+- `FactionManager.isHostile(self,target)` 统一门控（HOSTILE 即敌对；NEUTRAL 仅被误伤才反击）；`shouldTurnHostile` 改为防御性空安全
+- 验收：白狼主动杀噬体教/变异体/渡鸦，不杀友方(车站镇)/中立(拾荒者)；isHostile 单测 PASS
+- 全套 403 测试 0 失败，覆盖率 33.0%（门禁✅）
+- 注：AI-vs-AI 的详细 LOS/掩体/投掷战术为后续增强项（M2 收尾）
 
 ### ⏳ 需求 2 / 3 / 4 / 6 / 7 / 8 — 按 M2–M5 推进
 

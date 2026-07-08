@@ -110,6 +110,14 @@ class FactionManagerGreyZoneTest {
     }
 
     @Test
+    @DisplayName("isHostile：白狼对噬体教=敌对；对车站镇/拾荒者=不敌对")
+    void isHostileGating() {
+        assertTrue(fm.isHostile(wolf, factionMob("hive_cult")), "白狼应视噬体教为敌对");
+        assertFalse(fm.isHostile(wolf, factionMob("station_town")), "白狼不应视友方车站镇为敌对");
+        assertFalse(fm.isHostile(wolf, factionMob("scav_clan")), "白狼不应视中立拾荒者为敌对(未被攻击时)");
+    }
+
+    @Test
     @DisplayName("未配置(emwm_factions 为空)时回退到内置 Tarkov 枚举")
     void fallbackToEnumWhenNotConfigured() {
         FactionManager legacy = new FactionManager();

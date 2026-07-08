@@ -1,5 +1,6 @@
 package com.emwbridge.ai.faction;
 
+import org.bukkit.Location;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.LivingEntity;
@@ -155,6 +156,17 @@ public class FactionManager {
         return getFactionId(target.getUniqueId());
     }
 
+    /**
+     * 统一敌对判定：HOSTILE 即敌对；NEUTRAL 仅当被误伤(shouldTurnHostile)才视为敌对。
+     * 同时适用于字符串阵营系统与旧 Tarkov 枚举回退。
+     */
+    public boolean isHostile(LivingEntity self, LivingEntity target) {
+        HostilityMatrix.Relation rel = getRelation(self, target);
+        if (rel == HostilityMatrix.Relation.HOSTILE) return true;
+        if (rel == HostilityMatrix.Relation.NEUTRAL && shouldTurnHostile(self, target)) return true;
+        return false;
+    }
+
     private TarkovFaction resolveTargetFaction(LivingEntity target) {
         if (target instanceof Player) {
             if (target.hasPermission("emwm.scav")) {
@@ -166,10 +178,13 @@ public class FactionManager {
     }
 
     public boolean shouldTurnHostile(LivingEntity self, LivingEntity target) {
-        // P0-8 修复：跨世界安全距离检查
-        if (self.getLocation().getWorld() != null && target.getLocation().getWorld() != null
-                && self.getLocation().getWorld().equals(target.getLocation().getWorld())
-                && self.getLocation().distance(target.getLocation()) < 3.0) return true;
+        // P0-8 修复：跨世界安全距离检查（防御性空安全，避免 getLocation() 为 null 时 NPE）
+        Location selfLoc = self.getLocation();
+        Location targetLoc = target.getLocation();
+        if (selfLoc != null && targetLoc != null
+                && selfLoc.getWorld() != null && targetLoc.getWorld() != null
+                && selfLoc.getWorld().equals(targetLoc.getWorld())
+                && selfLoc.distance(targetLoc) < 3.0) return true;
         if (self.getLastDamageCause() != null
                 && self.getLastDamageCause().getEntity() == target) return true;
         return false;
