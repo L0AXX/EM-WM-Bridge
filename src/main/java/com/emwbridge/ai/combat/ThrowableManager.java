@@ -86,7 +86,8 @@ public class ThrowableManager {
         markCooldown(uuid, ThrowableType.FRAG);
         spawnTrajectoryParticle(thrower, targetLoc, ThrowableType.FRAG);
 
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+        // P0-5 修复：Folia 环境下使用 EntityScheduler
+        scheduleDelayedEntityTask(thrower, () -> {
             explodeFrag(thrower, targetLoc);
         }, (long) (fragFuseSeconds * 20));
 
@@ -104,7 +105,8 @@ public class ThrowableManager {
         markCooldown(uuid, ThrowableType.FLASH);
         spawnTrajectoryParticle(thrower, targetLoc, ThrowableType.FLASH);
 
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+        // P0-5 修复：Folia 环境下使用 EntityScheduler
+        scheduleDelayedEntityTask(thrower, () -> {
             explodeFlash(thrower, targetLoc);
         }, (long) (flashFuseSeconds * 20));
 
@@ -121,7 +123,8 @@ public class ThrowableManager {
         markCooldown(uuid, ThrowableType.SMOKE);
         spawnTrajectoryParticle(thrower, targetLoc, ThrowableType.SMOKE);
 
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+        // P0-5 修复：Folia 环境下使用 EntityScheduler
+        scheduleDelayedEntityTask(thrower, () -> {
             deploySmoke(targetLoc);
         }, (long) (smokeFuseSeconds * 20));
 
@@ -147,6 +150,26 @@ public class ThrowableManager {
     }
 
     // ==================== 内部实现 ====================
+
+    /**
+     * P0-5 修复：Folia 环境下使用 EntityScheduler 调度实体相关延迟任务
+     */
+    private void scheduleDelayedEntityTask(LivingEntity entity, Runnable task, long delayTicks) {
+        if (plugin.isFolia()) {
+            entity.getScheduler().execute(plugin, task, null, delayTicks);
+        } else {
+            Bukkit.getScheduler().runTaskLater(plugin, task, delayTicks);
+        }
+    }
+
+    /**
+     * P0-8 修复：安全的跨世界距离计算，防止不同世界 distance() 抛异常
+     */
+    private static double safeDistance(Location a, Location b) {
+        if (a == null || b == null || a.getWorld() == null || b.getWorld() == null) return Double.MAX_VALUE;
+        if (!a.getWorld().equals(b.getWorld())) return Double.MAX_VALUE;
+        return a.distance(b);
+    }
 
     private boolean canThrow(UUID uuid, ThrowableType type) {
         return getCooldownRemaining(uuid, type) == 0;
@@ -188,7 +211,7 @@ public class ThrowableManager {
         direction.normalize();
 
         Particle particleType = switch (type) {
-            case FRAG -> Particle.ITEM;
+            case FRAG -> Particle.CRIT;  // Particle.ITEM 需要 ItemStack 数据，改用 CRIT
             case FLASH -> Particle.ELECTRIC_SPARK;
             case SMOKE -> Particle.CAMPFIRE_COSY_SMOKE;
         };
@@ -217,36 +240,66 @@ public class ThrowableManager {
         // 物理模拟飞行
         Vector velocity = direction.clone().multiply(1.2);
         double arc = Math.min(distance * 0.3, 10.0);
-        new BukkitRunnable() {
-            int tick = 0;
-            final int maxTicks = (int) (distance / 1.2) + 20;
+        final int maxTicks = (int) (distance / 1.2) + 20;
 
-            @Override
-            public void run() {
-                tick++;
-                if (tick > maxTicks || marker.isDead()) {
-                    marker.remove();
-                    cancel();
+        // P0-5 修复：Folia 环境下使用 EntityScheduler 递归调度，Paper 环境保持 BukkitRunnable
+        if (plugin.isFolia()) {
+            final int[] tickHolder = {0};
+            Runnable[] step = new Runnable[1];
+            step[0] = () -> {
+                tickHolder[0]++;
+                int t = tickHolder[0];
+                if (t > maxTicks || marker.isDead()) {
+                    try { marker.remove(); } catch (Exception ignored) {}
                     return;
                 }
-                // 抛物线
-                velocity.setY(velocity.getY() - 0.04 * (tick / 20.0)); // 轻微重力
+                velocity.setY(velocity.getY() - 0.04 * (t / 20.0));
                 Location next = marker.getLocation().add(velocity);
                 if (next.getBlock().getType().isSolid()) {
-                    // 碰到方块立即引爆
-                    marker.remove();
+                    try { marker.remove(); } catch (Exception ignored) {}
                     switch (type) {
                         case FRAG -> explodeFrag(thrower, next);
                         case FLASH -> explodeFlash(thrower, next);
                         case SMOKE -> deploySmoke(next);
                     }
-                    cancel();
                     return;
                 }
-                marker.teleport(next);
+                try { marker.teleport(next); } catch (Exception ignored) {}
                 world.spawnParticle(particleType, next, 1, 0, 0, 0, 0);
-            }
-        }.runTaskTimer(plugin, 1L, 1L);
+                marker.getScheduler().execute(plugin, step[0], null, 1);
+            };
+            marker.getScheduler().execute(plugin, step[0], null, 1);
+        } else {
+            new BukkitRunnable() {
+                int tick = 0;
+
+                @Override
+                public void run() {
+                    tick++;
+                    if (tick > maxTicks || marker.isDead()) {
+                        marker.remove();
+                        cancel();
+                        return;
+                    }
+                    // 抛物线
+                    velocity.setY(velocity.getY() - 0.04 * (tick / 20.0)); // 轻微重力
+                    Location next = marker.getLocation().add(velocity);
+                    if (next.getBlock().getType().isSolid()) {
+                        // 碰到方块立即引爆
+                        marker.remove();
+                        switch (type) {
+                            case FRAG -> explodeFrag(thrower, next);
+                            case FLASH -> explodeFlash(thrower, next);
+                            case SMOKE -> deploySmoke(next);
+                        }
+                        cancel();
+                        return;
+                    }
+                    marker.teleport(next);
+                    world.spawnParticle(particleType, next, 1, 0, 0, 0, 0);
+                }
+            }.runTaskTimer(plugin, 1L, 1L);
+        }
     }
 
     /**
@@ -264,7 +317,7 @@ public class ThrowableManager {
 
         // 伤害计算 — 距离衰减
         for (Player player : world.getPlayers()) {
-            double dist = player.getLocation().distance(center);
+            double dist = safeDistance(player.getLocation(), center);  // P0-8 修复：跨世界安全距离
             if (dist > fragRadius) continue;
             if (!hasLineOfSight(center, player.getEyeLocation())) continue;
 
@@ -288,7 +341,7 @@ public class ThrowableManager {
         world.playSound(center, Sound.ENTITY_FIREWORK_ROCKET_BLAST, 2.0f, 1.5f);
 
         for (Player player : world.getPlayers()) {
-            double dist = player.getLocation().distance(center);
+            double dist = safeDistance(player.getLocation(), center);  // P0-8 修复：跨世界安全距离
             if (dist > flashRadius) continue;
 
             // 距离衰减 — 越近效果越强

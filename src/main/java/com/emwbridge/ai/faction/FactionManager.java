@@ -45,7 +45,10 @@ public class FactionManager {
     }
 
     public boolean shouldTurnHostile(LivingEntity self, LivingEntity target) {
-        if (self.getLocation().distance(target.getLocation()) < 3.0) return true;
+        // P0-8 修复：跨世界安全距离检查
+        if (self.getLocation().getWorld() != null && target.getLocation().getWorld() != null
+                && self.getLocation().getWorld().equals(target.getLocation().getWorld())
+                && self.getLocation().distance(target.getLocation()) < 3.0) return true;
         if (self.getLastDamageCause() != null
                 && self.getLastDamageCause().getEntity() == target) return true;
         return false;

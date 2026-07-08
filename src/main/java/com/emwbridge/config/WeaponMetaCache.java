@@ -45,7 +45,7 @@ public class WeaponMetaCache {
 
     /**
      * 预加载所有用到的WM武器
-     * 立即尝试加载；对失败的武器，60tick后延迟重试（等待WM就绪）
+     * 立即尝试加载；对失败的武器，分两轮延迟重试（等待WM就绪）
      */
     public void preloadWeapons(Collection<String> weaponIds) {
         plugin.debug("[WeaponMetaCache] 开始预加载 " + weaponIds.size() + " 个武器元数据");
@@ -60,16 +60,30 @@ public class WeaponMetaCache {
         int loaded = weaponDataCache.size();
         int failed = pendingWeaponIds.size();
         if (failed > 0) {
-            // 60tick后重试失败武器（等待WM完成加载）
+            // 第一轮重试：200 tick (10秒) 后，等待 WM 配置加载完成
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
                 Set<String> retryIds = new HashSet<>(pendingWeaponIds);
                 pendingWeaponIds.clear();
                 for (String weaponId : retryIds) {
                     loadWeapon(weaponId);
                 }
-                plugin.debug("[WeaponMetaCache] 延迟重试完成，共缓存 " + weaponDataCache.size() + " 个武器"
-                        + ", 仍失败: " + pendingWeaponIds.size());
-            }, 60L);
+                int stillFailed = pendingWeaponIds.size();
+                plugin.debug("[WeaponMetaCache] 第一轮重试完成，共缓存 " + weaponDataCache.size()
+                        + " 个武器, 仍失败: " + stillFailed);
+
+                // 第二轮兜底：再等 200 tick，处理极端慢加载情况
+                if (stillFailed > 0) {
+                    plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                        Set<String> finalIds = new HashSet<>(pendingWeaponIds);
+                        pendingWeaponIds.clear();
+                        for (String weaponId : finalIds) {
+                            loadWeapon(weaponId);
+                        }
+                        plugin.debug("[WeaponMetaCache] 第二轮重试完成，共缓存 " + weaponDataCache.size()
+                                + " 个武器, 仍失败: " + pendingWeaponIds.size());
+                    }, 200L);
+                }
+            }, 200L);
         }
 
         plugin.debug("[WeaponMetaCache] 首轮预加载完成，共缓存 " + loaded + " 个武器, 待重试: " + failed);
@@ -99,17 +113,24 @@ public class WeaponMetaCache {
             NativeWeaponData data = new NativeWeaponData(weaponId);
             data.weaponType = "GUN";
 
-            // 射速：先读全自动射速，再读单发间隔
-            double shotsPerSecond = config.getDouble(weaponId + ".Info.Fully_Automatic_Shots_Per_Second", 0);
+            // 射速：先读全自动射速(Shoot下)，再读单发间隔(Shoot下)，再读Cooldown(秒)
+            // 注意：WM getWeaponConfigurations() 返回的 Delay_Between_Shots 已是毫秒值(ticks×50)，无需再乘50
+            double shotsPerSecond = config.getDouble(weaponId + ".Shoot.Fully_Automatic_Shots_Per_Second", 0);
             if (shotsPerSecond > 0) {
                 data.fireRateMs = (long) (1000.0 / shotsPerSecond);
                 data.fireMode = "AUTO";
             } else {
-                int delayTicks = config.getInt(weaponId + ".Info.Delay_Between_Shots", 0);
-                if (delayTicks > 0) {
-                    data.fireRateMs = delayTicks * 50L;
+                int delayMs = config.getInt(weaponId + ".Shoot.Delay_Between_Shots", 0);
+                if (delayMs > 0) {
+                    data.fireRateMs = delayMs;
                 } else {
-                    data.fireRateMs = 300L;
+                    // 部分简化配置用 Cooldown（单位：秒）
+                    double cooldownSec = config.getDouble(weaponId + ".Shoot.Cooldown", 0);
+                    if (cooldownSec > 0) {
+                        data.fireRateMs = (long) (cooldownSec * 1000);
+                    } else {
+                        data.fireRateMs = 300L;
+                    }
                 }
                 data.fireMode = "SINGLE";
             }
@@ -118,9 +139,9 @@ public class WeaponMetaCache {
             data.magazineSize = config.getInt(weaponId + ".Reload.Magazine_Size", 30);
             data.reloadDuration = config.getInt(weaponId + ".Reload.Reload_Duration", 60);
 
-            // 散布
-            data.baseSpread = config.getDouble(weaponId + ".Info.Spread.Base_Spread", 3.0);
-            String zoomSpread = config.getString(weaponId + ".Info.Spread.Modify_Spread_When.Zooming", "50%");
+            // 散布（Shoot.Spread.Base_Spread）
+            data.baseSpread = config.getDouble(weaponId + ".Shoot.Spread.Base_Spread", 3.0);
+            String zoomSpread = config.getString(weaponId + ".Shoot.Spread.Modify_Spread_When.Zooming", "50%");
             if (zoomSpread != null && zoomSpread.endsWith("%")) {
                 double percent = Double.parseDouble(zoomSpread.replace("%", ""));
                 data.adsSpreadMultiplier = percent / 100.0;
@@ -128,25 +149,25 @@ public class WeaponMetaCache {
                 data.adsSpreadMultiplier = 0.5;
             }
 
-            // 子弹速度
-            data.projectileSpeed = config.getDouble(weaponId + ".Info.Projectile_Speed", 100.0);
+            // 子弹速度（Shoot.Projectile_Speed）
+            data.projectileSpeed = config.getDouble(weaponId + ".Shoot.Projectile_Speed", 100.0);
 
             // 子弹穿透
             data.bulletPenetration = config.getDouble(weaponId + ".Info.Penetration.Multiplier", 1.0);
 
-            // 后坐力
-            data.recoilPitch = config.getDouble(weaponId + ".Info.Recoil.Pitch", 1.0);
-            data.recoilYaw = config.getDouble(weaponId + ".Info.Recoil.Yaw", 1.0);
+            // 后坐力（Shoot.Recoil.Mean_X / Mean_Y）
+            data.recoilPitch = config.getDouble(weaponId + ".Shoot.Recoil.Mean_Y", 1.0);
+            data.recoilYaw = config.getDouble(weaponId + ".Shoot.Recoil.Mean_X", 0.0);
 
-            // 最大射程（从散布模块读）
-            data.maxRange = config.getInt(weaponId + ".Info.Spread.Max_Range", 40);
+            // 最大射程（WM 标准配置无 Max_Range 字段，用 Shoot.Range 兜底，无则默认 40）
+            data.maxRange = config.getInt(weaponId + ".Shoot.Range", 40);
 
-            // 消音
-            data.suppressed = config.getBoolean(weaponId + ".Info.Suppressed", false);
+            // 消音（WM 标准配置无此字段，默认 false）
+            data.suppressed = false;
 
-            // 动作延迟
-            data.equipDelay = config.getInt(weaponId + ".Info.Equip_Delay", 0);
-            data.aimDelay = config.getInt(weaponId + ".Info.Aim_Delay", 0);
+            // 动作延迟（Info.Weapon_Equip_Delay，注意字段名不是 Equip_Delay）
+            data.equipDelay = config.getInt(weaponId + ".Info.Weapon_Equip_Delay", 0);
+            data.aimDelay = 0;
 
             weaponDataCache.put(weaponId, data);
             registeredWeapons.add(weaponId);
@@ -159,7 +180,7 @@ public class WeaponMetaCache {
 
     /**
      * 使用三级参数优先级解析最终火速率(ms)
-     * config非null字段 → template非null字段 → WM原生 → 默认300ms
+     * config非null字段 → template非null字段 → WM原生(Shoot.Fully_Automatic_Shots_Per_Second / Shoot.Delay_Between_Shots) → 默认300ms
      */
     public long resolveFireRateMs(EMWMWeaponConfig config, EMWMWeaponConfig template, String weaponId) {
         if (config != null && config.getFireRate() != null) {

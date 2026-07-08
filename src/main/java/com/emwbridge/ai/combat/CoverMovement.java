@@ -46,8 +46,8 @@ public class CoverMovement {
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         double horizontalDist = Math.sqrt(dx * dx + dz * dz);
         float pitch = (float) -Math.toDegrees(Math.atan2(dy, horizontalDist));
-        loc.setYaw(yaw);
-        loc.setPitch(pitch);
+        // P0-6 修复：直接设置实体朝向，而非仅修改 Location 对象
+        entity.setRotation(yaw, pitch);
     }
 
     public void stopMoving(LivingEntity entity) {
@@ -283,6 +283,9 @@ public class CoverMovement {
 
     public void moveAlongLineOfFire(LivingEntity entity, Player target, double aggressiveness, double maxRange) {
         if (!restrictMovement) return;
+        // P0-8 修复：跨世界安全距离检查
+        if (entity.getLocation().getWorld() == null || target.getLocation().getWorld() == null
+                || !entity.getLocation().getWorld().equals(target.getLocation().getWorld())) return;
         double dist = entity.getLocation().distance(target.getLocation());
         boolean advance = Math.random() < aggressiveness;
         Vector lineOfFire = target.getLocation().toVector()

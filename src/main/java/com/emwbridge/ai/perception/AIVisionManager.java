@@ -73,8 +73,8 @@ public class AIVisionManager {
 
         ExposureData data = playerExposures.computeIfAbsent(playerUuid, k -> new ExposureData());
 
-        // 视觉曝光增量
-        double increment = visual.calculate(ai, target, baseRate);
+        // 视觉曝光增量（传入当前曝光值用于记忆追踪）
+        double increment = visual.calculate(ai, target, baseRate, data.getValue());
         if (increment > 0) {
             // 玩家朝向修正：背对AI时更难被发现
             increment *= visual.getTargetFacingMultiplier(target, ai.getEyeLocation());

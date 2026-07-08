@@ -194,7 +194,8 @@ class ExtremeEventManagerTest {
         void extremeStateConstructorShouldInitialize() {
             ExtremeEventManager.ExtremeState state = new ExtremeEventManager.ExtremeState();
 
-            assertEquals(0, state.lastDamageTime);
+            assertEquals(0, state.lastDamageTimestamp);
+            assertEquals(0, state.lastDamageValue, 0.001);
             assertEquals(0, state.damageCount);
             assertEquals(0, state.consecutiveDamage);
             assertEquals(0, state.panicLevel, 0.001);

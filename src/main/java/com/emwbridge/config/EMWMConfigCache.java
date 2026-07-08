@@ -259,34 +259,57 @@ public class EMWMConfigCache {
 
     /**
      * 加载单个怪物配置文件
+     * 支持三种配置格式：
+     * 1. emwm 配置段（标准格式）
+     * 2. 根级别字段（weaponPool, fireRate 等直接写在顶层）
+     * 3. 仅 emwmTemplate 继承模板（无个体配置）
      */
     private void loadMobConfig(File file, String pathPrefix) {
         String fileName = pathPrefix + file.getName().replace(".yml", "");
 
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
 
+        // 检查模板继承来源（三种可能的路径）
+        String inheritTemplate = null;
+        if (yaml.contains("emwmTemplate")) {
+            inheritTemplate = yaml.getString("emwmTemplate");
+        } else if (yaml.contains("emwm_template")) {
+            inheritTemplate = yaml.getString("emwm_template");
+        } else if (yaml.contains("customdata.emwm-template")) {
+            inheritTemplate = yaml.getString("customdata.emwm-template");
+        } else if (yaml.contains("customdata.emwm_template")) {
+            inheritTemplate = yaml.getString("customdata.emwm_template");
+        }
+
         // 检查是否有emwm配置段
         ConfigurationSection emwmSection = yaml.getConfigurationSection("emwm");
         if (emwmSection == null) {
-            // 检查是否有继承模板配置（向后兼容：优先读驼峰，回退读横杠）
-            String inheritTemplate = yaml.contains("emwmTemplate") ? yaml.getString("emwmTemplate") : yaml.getString("emwm_template");
-            if (inheritTemplate != null) {
-                templateInheritance.put(fileName, inheritTemplate);
-                plugin.debug("[EMWMConfigCache] 怪物 " + fileName + " 继承模板: " + inheritTemplate);
+            // 没有emwm段，检查根级别是否有EMWM相关字段（weaponPool/weapon/fireRate等）
+            boolean hasRootLevelEMWM = yaml.contains("weaponPool") || yaml.contains("weapon")
+                    || yaml.contains("fireRate") || yaml.contains("aggressiveness");
+            if (hasRootLevelEMWM) {
+                // 根级别字段当作emwm段解析
+                emwmSection = yaml;
             }
-            return;
         }
 
-        EMWMWeaponConfig config = parseEMWMConfig(emwmSection);
-        if (config != null) {
-            mobConfigs.put(fileName, config);
-            plugin.debug("[EMWMConfigCache] 已加载怪物配置: " + fileName + " → " + config.getWeaponPool());
+        if (emwmSection != null) {
+            EMWMWeaponConfig config = parseEMWMConfig(emwmSection);
+            if (config != null) {
+                mobConfigs.put(fileName, config);
+                plugin.debug("[EMWMConfigCache] 已加载怪物配置: " + fileName + " → " + config.getWeaponPool());
 
-            // 检查是否有继承模板（用于补充未定义的字段，向后兼容：优先读驼峰，回退读横杠）
-            String inheritTemplate = yaml.contains("emwmTemplate") ? yaml.getString("emwmTemplate") : yaml.getString("emwm_template");
-            if (inheritTemplate != null) {
-                templateInheritance.put(fileName, inheritTemplate);
+                if (inheritTemplate != null) {
+                    templateInheritance.put(fileName, inheritTemplate);
+                }
+                return;
             }
+        }
+
+        // 没有个体配置，仅记录模板继承
+        if (inheritTemplate != null) {
+            templateInheritance.put(fileName, inheritTemplate);
+            plugin.debug("[EMWMConfigCache] 怪物 " + fileName + " 继承模板: " + inheritTemplate);
         }
     }
 
@@ -647,17 +670,104 @@ public class EMWMConfigCache {
      */
     public EMWMWeaponConfig getConfig(String mobFileName) {
         EMWMWeaponConfig config = mobConfigs.get(mobFileName);
+        String templateName = templateInheritance.get(mobFileName);
 
-        // 如果怪物自身有配置，直接返回
+        // 如果同时有个体配置和模板继承，合并模板字段（模板基线 + 个体覆盖）
+        if (config != null && templateName != null) {
+            EMWMWeaponConfig templateConfig = globalTemplates.get(templateName);
+            if (templateConfig != null) {
+                EMWMWeaponConfig merged = new EMWMWeaponConfig();
+                // 先复制个体配置（浅拷贝字段值）
+                merged.setWeaponPool(new ArrayList<>(config.getWeaponPool()));
+                merged.setWeaponWeights(new HashMap<>(config.getWeaponWeights()));
+                if (config.getMagazineSize() != null) merged.setMagazineSize(config.getMagazineSize());
+                if (config.getReloadDuration() != null) merged.setReloadDuration(config.getReloadDuration());
+                if (config.isAutoReload() != null) merged.setAutoReload(config.isAutoReload());
+                if (config.getFireRate() != null) merged.setFireRate(config.getFireRate());
+                if (config.getSpread() != null) merged.setSpread(config.getSpread());
+                if (config.getAdsSpreadMultiplier() != null) merged.setAdsSpreadMultiplier(config.getAdsSpreadMultiplier());
+                if (config.getEffectiveRange() != null) merged.setEffectiveRange(config.getEffectiveRange());
+                if (config.getMaxRange() != null) merged.setMaxRange(config.getMaxRange());
+                if (config.getAdsRangeThreshold() != null) merged.setAdsRangeThreshold(config.getAdsRangeThreshold());
+                if (config.getMeleeRange() != null) merged.setMeleeRange(config.getMeleeRange());
+                if (config.isStandAndShoot() != null) merged.setStandAndShoot(config.isStandAndShoot());
+                if (config.getSuppressHpThreshold() != null) merged.setSuppressHpThreshold(config.getSuppressHpThreshold());
+                if (config.getRetreatHpThreshold() != null) merged.setRetreatHpThreshold(config.getRetreatHpThreshold());
+                if (config.getAggressiveness() != null) merged.setAggressiveness(config.getAggressiveness());
+                if (config.getCoverUsage() != null) merged.setCoverUsage(config.getCoverUsage());
+                if (config.getSearchDuration() != null) merged.setSearchDuration(config.getSearchDuration());
+                if (config.getFragInterval() != null) merged.setFragInterval(config.getFragInterval());
+                if (config.getFlashInterval() != null) merged.setFlashInterval(config.getFlashInterval());
+                if (config.getSmokeInterval() != null) merged.setSmokeInterval(config.getSmokeInterval());
+                if (config.isThrowIfCover() != null) merged.setThrowIfCover(config.isThrowIfCover());
+                if (config.getThrowMinRange() != null) merged.setThrowMinRange(config.getThrowMinRange());
+                if (config.getThrowMaxRange() != null) merged.setThrowMaxRange(config.getThrowMaxRange());
+                if (config.isCallReinforcements() != null) merged.setCallReinforcements(config.isCallReinforcements());
+                if (config.isSquadLeader() != null) merged.setSquadLeader(config.isSquadLeader());
+                if (config.isPreferLongRange() != null) merged.setPreferLongRange(config.isPreferLongRange());
+                if (config.isPreferRush() != null) merged.setPreferRush(config.isPreferRush());
+                if (config.getFireMode() != null) merged.setFireMode(config.getFireMode());
+                if (config.getProjectileSpeed() != null) merged.setProjectileSpeed(config.getProjectileSpeed());
+                if (config.getBulletPenetration() != null) merged.setBulletPenetration(config.getBulletPenetration());
+                if (config.isMuzzleFlashEnabled() != null) merged.setMuzzleFlashEnabled(config.isMuzzleFlashEnabled());
+                if (config.isSuppressed() != null) merged.setSuppressed(config.isSuppressed());
+                if (config.isOnlyAimShoot() != null) merged.setOnlyAimShoot(config.isOnlyAimShoot());
+                if (config.getDamageMultiplier() != null) merged.setDamageMultiplier(config.getDamageMultiplier());
+                if (config.getRecoil() != null) merged.setRecoil(config.getRecoil());
+                if (config.getAmmoType() != null) merged.setAmmoType(config.getAmmoType());
+                if (config.getReserveAmmo() != null) merged.setReserveAmmo(config.getReserveAmmo());
+                if (config.isCancelReloadOnMove() != null) merged.setCancelReloadOnMove(config.isCancelReloadOnMove());
+                if (config.getEquipDelay() != null) merged.setEquipDelay(config.getEquipDelay());
+                if (config.getAimDelay() != null) merged.setAimDelay(config.getAimDelay());
+                if (config.getEquipAnimation() != null) merged.setEquipAnimation(config.getEquipAnimation());
+                if (config.getAimAnimation() != null) merged.setAimAnimation(config.getAimAnimation());
+                if (config.getReloadAnimation() != null) merged.setReloadAnimation(config.getReloadAnimation());
+                if (config.getShootAnimation() != null) merged.setShootAnimation(config.getShootAnimation());
+                if (config.getCrouchAimSpreadReduction() != null) merged.setCrouchAimSpreadReduction(config.getCrouchAimSpreadReduction());
+                if (config.getDurabilityPerShot() != null) merged.setDurabilityPerShot(config.getDurabilityPerShot());
+                if (config.isBreakOnZeroDurability() != null) merged.setBreakOnZeroDurability(config.isBreakOnZeroDurability());
+                if (config.getAttachments() != null) merged.setAttachments(new ArrayList<>(config.getAttachments()));
+                if (config.isEnableGrenadeAI() != null) merged.setEnableGrenadeAI(config.isEnableGrenadeAI());
+                if (config.getGrenadeType() != null) merged.setGrenadeType(config.getGrenadeType());
+                if (config.getGrenadeMaxRange() != null) merged.setGrenadeMaxRange(config.getGrenadeMaxRange());
+                if (config.getGrenadeCooldownTicks() != null) merged.setGrenadeCooldownTicks(config.getGrenadeCooldownTicks());
+                if (config.getGrenadeMinEnemyCoverTime() != null) merged.setGrenadeMinEnemyCoverTime(config.getGrenadeMinEnemyCoverTime());
+                if (config.getMaxGrenadeCarry() != null) merged.setMaxGrenadeCarry(config.getMaxGrenadeCarry());
+                if (config.getAllowedGrenadeTypes() != null) merged.setAllowedGrenadeTypes(new ArrayList<>(config.getAllowedGrenadeTypes()));
+                if (config.getMeleeSwitchHealthPercent() != null) merged.setMeleeSwitchHealthPercent(config.getMeleeSwitchHealthPercent());
+
+                // 用模板填充null字段
+                merged.mergeWithTemplate(templateConfig);
+                plugin.debug("[EMWMConfigCache] 合并配置: " + mobFileName + " (个体 + 模板:" + templateName + ")");
+                return merged;
+            }
+        }
+
+        // 只有个体配置，无模板
         if (config != null) return config;
 
-        // 检查是否有继承模板
-        String templateName = templateInheritance.get(mobFileName);
+        // 只有模板继承
         if (templateName != null) {
             EMWMWeaponConfig templateConfig = globalTemplates.get(templateName);
             if (templateConfig != null) {
                 plugin.debug("[EMWMConfigCache] 怪物 " + mobFileName + " 使用模板配置: " + templateName);
                 return templateConfig;
+            }
+        }
+
+        // mobFileName 本身就是模板名（matchConfigByName 返回模板名时走这里）
+        EMWMWeaponConfig directTemplate = globalTemplates.get(mobFileName);
+        if (directTemplate != null) {
+            plugin.debug("[EMWMConfigCache] 直接使用全局模板: " + mobFileName);
+            return directTemplate;
+        }
+
+        // 模糊匹配：mobFileName 是 tier（如 "boss"），查找以 tier 开头的模板
+        for (Map.Entry<String, EMWMWeaponConfig> entry : globalTemplates.entrySet()) {
+            if (entry.getKey().toLowerCase().startsWith(mobFileName.toLowerCase() + "_")
+                    || entry.getKey().equalsIgnoreCase(mobFileName)) {
+                plugin.debug("[EMWMConfigCache] tier模糊匹配模板: " + mobFileName + " → " + entry.getKey());
+                return entry.getValue();
             }
         }
 
@@ -697,16 +807,18 @@ public class EMWMConfigCache {
     public String matchConfigByName(String customName) {
         if (customName == null) return null;
 
+        // 统一清理颜色代码和特殊字符
+        String cleanName = customName.replace("&", "").replace("§", "").toLowerCase();
+
         // 尝试匹配配置文件名
         for (String fileName : mobConfigs.keySet()) {
-            if (customName.toLowerCase().contains(fileName.toLowerCase())) {
+            if (cleanName.contains(fileName.toLowerCase())) {
                 return fileName;
             }
         }
 
         // 尝试匹配模板名
         for (String templateName : globalTemplates.keySet()) {
-            String cleanName = customName.replace("&", "").replace("§", "").toLowerCase();
             if (cleanName.contains(templateName.toLowerCase())) {
                 return templateName;
             }
@@ -745,7 +857,18 @@ public class EMWMConfigCache {
      * 检查怪物是否有emwm配置
      */
     public boolean hasConfig(String mobFileName) {
-        return mobConfigs.containsKey(mobFileName)
-                || templateInheritance.containsKey(mobFileName);
+        if (mobConfigs.containsKey(mobFileName)
+                || templateInheritance.containsKey(mobFileName)
+                || globalTemplates.containsKey(mobFileName)) {
+            return true;
+        }
+        // 模糊匹配：tier 前缀匹配模板名（如 "boss" → "boss_rifle"）
+        for (String templateName : globalTemplates.keySet()) {
+            if (templateName.toLowerCase().startsWith(mobFileName.toLowerCase() + "_")
+                    || templateName.equalsIgnoreCase(mobFileName)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

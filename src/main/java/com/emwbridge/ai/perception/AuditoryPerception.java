@@ -78,6 +78,9 @@ public class AuditoryPerception {
 
         // 计算距离
         Location listenerLoc = listener.getEyeLocation();
+        // P0-8 修复：跨世界安全距离检查
+        if (listenerLoc.getWorld() == null || source.getSourceLoc().getWorld() == null
+                || !listenerLoc.getWorld().equals(source.getSourceLoc().getWorld())) return;
         double distance = listenerLoc.distance(source.getSourceLoc());
 
         // 超出基础范围直接跳过（耳机不扩展基础范围判定，留空让距离衰减处理）
@@ -136,6 +139,9 @@ public class AuditoryPerception {
     // ==================== 穿墙计数 ====================
 
     private int countSolidBlocksBetween(Location from, Location to) {
+        // P0-8 修复：跨世界安全距离检查
+        if (from.getWorld() == null || to.getWorld() == null
+                || !from.getWorld().equals(to.getWorld())) return Integer.MAX_VALUE;
         int count = 0;
         double dist = from.distance(to);
         int steps = (int) (dist * 2);
@@ -192,6 +198,9 @@ public class AuditoryPerception {
             for (UUID playerUuid : existingExposures.keySet()) {
                 var player = Bukkit.getPlayer(playerUuid);
                 if (player != null && player.isOnline()) {
+                    // P0-8 修复：跨世界安全距离检查
+                    if (player.getLocation().getWorld() == null || soundLoc.getWorld() == null
+                            || !player.getLocation().getWorld().equals(soundLoc.getWorld())) continue;
                     double d = player.getLocation().distance(soundLoc);
                     if (d < closestDist) {
                         closestDist = d;
@@ -203,6 +212,10 @@ public class AuditoryPerception {
         }
 
         if (listenerLoc.getWorld() != null) {
+            // P0-8 修复：确保 soundLoc 与 listenerLoc 在同一世界
+            if (soundLoc.getWorld() == null || !soundLoc.getWorld().equals(listenerLoc.getWorld())) {
+                return closest;
+            }
             for (var player : listenerLoc.getWorld().getPlayers()) {
                 if (!player.isOnline() || player.isDead()) continue;
                 double d = player.getLocation().distance(soundLoc);

@@ -150,13 +150,17 @@ public class VisualPerception {
 
     /**
      * 计算视觉曝光增量 — 射线检测版
+     * @param currentExposure 当前曝光值（用于记忆追踪：已有曝光的目标跳过FOV检查）
      * @return 曝光增量 (0 = 完全不可见)
      */
-    public double calculate(LivingEntity entity, Player target, double baseRate) {
+    public double calculate(LivingEntity entity, Player target, double baseRate, double currentExposure) {
         Location eyeLoc = entity.getEyeLocation();
         Location targetLoc = target.getLocation();
 
         // ====== 步骤 1: 距离衰减 ======
+        // P0-8 修复：跨世界安全距离检查
+        if (eyeLoc.getWorld() == null || targetLoc.getWorld() == null
+                || !eyeLoc.getWorld().equals(targetLoc.getWorld())) return 0;
         double distance = eyeLoc.distance(targetLoc);
         if (distance > maxVisionRange) return 0;
         double distanceM = 1.0 / (1.0 + distance / (maxVisionRange * 0.3));
@@ -167,14 +171,22 @@ public class VisualPerception {
         Vector toTarget = targetLoc.toVector().subtract(eyeLoc.toVector()).setY(0).normalize();
         double dot = entityDir.dot(toTarget);
         double halfFovRad = Math.toRadians(fovDegrees / 2.0);
-        if (Math.acos(Math.max(-1.0, Math.min(1.0, dot))) > halfFovRad) {
-            return 0; // 目标在视野外
-        }
 
         double angleM;
-        if (dot > 0.5) angleM = angleFront;
-        else if (dot > -0.5) angleM = angleSide;
-        else angleM = angleBack;
+        boolean outsideFov = Math.acos(Math.max(-1.0, Math.min(1.0, dot))) > halfFovRad;
+
+        if (outsideFov) {
+            // 目标在视野外 — 已有曝光值>5时进行记忆追踪（减速检测），否则完全不可见
+            if (currentExposure >= 5.0) {
+                angleM = angleBack * 0.4; // 记忆追踪：背向倍率的40%
+            } else {
+                return 0; // 新目标在视野外，完全不可见
+            }
+        } else {
+            if (dot > 0.5) angleM = angleFront;
+            else if (dot > -0.5) angleM = angleSide;
+            else angleM = angleBack;
+        }
 
         // ====== 步骤 3: 身体部位射线检测 ======
         int visibleParts = 0;

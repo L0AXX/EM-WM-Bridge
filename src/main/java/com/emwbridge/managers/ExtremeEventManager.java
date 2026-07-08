@@ -3,6 +3,7 @@ package com.emwbridge.managers;
 import com.emwbridge.EMWMBridge;
 import com.emwbridge.events.TarkovEvent;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 
@@ -90,22 +91,41 @@ public class ExtremeEventManager {
     private void updateState(LivingEntity entity, ExtremeState state, Player target) {
         long now = System.currentTimeMillis();
 
-        // 更新被攻击时间
+        // P0-4 修复：getLastDamage() 返回的是伤害数值(double)，不是时间戳
+        // 正确做法：检测伤害值变化来判定新伤害事件，用单独字段记录时间戳
         double lastDamage = entity.getLastDamage();
-        if (lastDamage > 0 && lastDamage != state.lastDamageTime) {
-            state.lastDamageTime = (long) lastDamage;
+        if (lastDamage > 0 && Double.compare(lastDamage, state.lastDamageValue) != 0) {
+            state.lastDamageValue = lastDamage;
+            state.lastDamageTimestamp = now;
             state.damageCount++;
             state.consecutiveDamage++;
 
             if (state.consecutiveDamage >= 3) {
                 state.panicLevel = Math.min(1.0, state.panicLevel + 0.3);
             }
-        } else {
+        } else if (now - state.lastDamageTimestamp > 2000) {
+            // 2秒内未受伤 → 重置连续伤害计数
             state.consecutiveDamage = 0;
             state.panicLevel = Math.max(0, state.panicLevel - 0.05);
         }
 
-        // 更新移动
+        // 懒初始化移动时间戳：避免初始 0 导致 now-0>500 恒为 true（误判"移动过多"）
+        if (state.lastMoveTime == 0) {
+            state.lastMoveTime = now;
+        }
+
+        // 基于实际位置变化更新移动状态（仅在能取到位置时生效）
+        Location cur = entity.getLocation();
+        if (cur != null) {
+            if (state.lastLocation == null) {
+                state.lastLocation = cur.clone();
+            } else if (cur.distanceSquared(state.lastLocation) > 0.04) { // 移动超过 0.2 格
+                state.lastMoveTime = now;
+                state.lastLocation = cur.clone();
+            }
+        }
+
+        // 更新移动状态
         if (now - state.lastMoveTime > 500) {
             state.movingTooMuch = true;
         } else {
@@ -148,7 +168,10 @@ public class ExtremeEventManager {
     }
 
     private boolean checkAdrenaline(LivingEntity entity, ExtremeState state) {
-        double hpRatio = entity.getHealth() / entity.getMaxHealth();
+        // P0-9 修复：防止 getMaxHealth() 为零导致除零
+        double maxHealth = entity.getMaxHealth();
+        if (maxHealth <= 0) return false;
+        double hpRatio = entity.getHealth() / maxHealth;
 
         // 残血时触发肾上腺素
         if (hpRatio < adrenalineHpThreshold && !state.adrenalineActive) {
@@ -256,7 +279,8 @@ public class ExtremeEventManager {
     }
 
     public static class ExtremeState {
-        public long lastDamageTime;
+        public double lastDamageValue;      // P0-4 修复：存储伤害数值（非时间戳）
+        public long lastDamageTimestamp;    // P0-4 修复：上次受伤的时间戳
         public int damageCount;
         public int consecutiveDamage;
         public double panicLevel;
@@ -265,12 +289,14 @@ public class ExtremeEventManager {
         public boolean adrenalineActive;
         public long adrenalineEndTime;
         public long lastMoveTime;
+        public Location lastLocation;
         public boolean movingTooMuch;
         public long exposedTime;
         public long mistakeCooldown;
 
         public ExtremeState() {
-            this.lastDamageTime = 0;
+            this.lastDamageValue = 0;
+            this.lastDamageTimestamp = 0;
             this.damageCount = 0;
             this.consecutiveDamage = 0;
             this.panicLevel = 0;

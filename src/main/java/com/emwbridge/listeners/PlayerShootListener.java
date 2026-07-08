@@ -4,8 +4,8 @@ import com.emwbridge.EMWMBridge;
 import com.emwbridge.ai.sound.SoundEventManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 
 import java.lang.reflect.Method;
@@ -14,7 +14,7 @@ import java.util.logging.Logger;
 /**
  * 玩家射击事件监听器 — 监听 WeaponMechanics 玩家射击事件，触发 AI 听觉仇恨
  * 
- * 通过反射监听 WeaponMechanics 的 PlayerShootEvent，避免硬依赖
+ * 通过反射监听 WeaponMechanics 的 WeaponShootEvent，避免硬依赖
  */
 public class PlayerShootListener implements Listener {
 
@@ -39,16 +39,17 @@ public class PlayerShootListener implements Listener {
     }
 
     /**
-     * WeaponMechanics PlayerShootEvent 监听器
+     * WeaponMechanics WeaponShootEvent 监听器
      * 使用 Object 参数避免编译时依赖
      */
     public void onPlayerShoot(Object event) {
         if (!weaponMechanicsLoaded) return;
 
         try {
-            Method getPlayerMethod = event.getClass().getMethod("getPlayer");
-            Object playerObj = getPlayerMethod.invoke(event);
-            if (!(playerObj instanceof Player player)) return;
+            // WeaponShootEvent 继承 WeaponEvent，getShooter() 返回 LivingEntity
+            Method getShooterMethod = event.getClass().getMethod("getShooter");
+            Object shooterObj = getShooterMethod.invoke(event);
+            if (!(shooterObj instanceof Player player)) return;
 
             Location shootLoc = player.getEyeLocation();
 
@@ -96,15 +97,16 @@ public class PlayerShootListener implements Listener {
         if (!weaponMechanicsLoaded) return;
 
         try {
+            // WM 4.3.x 实际类名是 WeaponShootEvent（不是 PlayerShootEvent）
             Class<? extends org.bukkit.event.Event> eventClass =
-                    (Class<? extends org.bukkit.event.Event>) Class.forName("me.deecaad.weaponmechanics.weapon.shoot.PlayerShootEvent");
+                    (Class<? extends org.bukkit.event.Event>) Class.forName("me.deecaad.weaponmechanics.weapon.weaponevents.WeaponShootEvent");
             Bukkit.getPluginManager().registerEvent(eventClass, this,
                     org.bukkit.event.EventPriority.NORMAL,
                     (listener, event) -> onPlayerShoot(event),
                     plugin);
-            logger.info("[PlayerShootListener] 已注册 WeaponMechanics PlayerShootEvent 监听器");
+            logger.info("[PlayerShootListener] 已注册 WeaponMechanics WeaponShootEvent 监听器");
         } catch (ClassNotFoundException e) {
-            logger.warning("[PlayerShootListener] 未找到 PlayerShootEvent 类，可能是版本不兼容");
+            logger.warning("[PlayerShootListener] 未找到 WeaponShootEvent 类，可能是版本不兼容");
         }
     }
 }

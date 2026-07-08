@@ -3,13 +3,16 @@ package com.emwbridge.listeners;
 import com.emwbridge.EMWMBridge;
 import com.emwbridge.config.EMWMConfigCache;
 import com.emwbridge.config.EMWMWeaponConfig;
+import com.emwbridge.events.EMWMKillEvent;
 import com.emwbridge.managers.MobWeaponManager;
 import com.emwbridge.managers.TarkovAIManager;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -17,6 +20,8 @@ import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.metadata.FixedMetadataValue;
+
+import java.util.List;
 
 public class EliteMobSpawnListener implements Listener {
 
@@ -50,17 +55,23 @@ public class EliteMobSpawnListener implements Listener {
             return;
         }
 
-        // 阶段2：回退到tier-based逻辑
+        // 阶段2：回退到tier-based逻辑 — 统一走 EMWM 路径
         boolean hasEliteMobsMeta = entity.hasMetadata("elitemobs");
-        boolean hasTarkovTier = entity.hasMetadata("tarkov_tier");
-        plugin.debug("Metadata检查 - elitemobs: " + hasEliteMobsMeta + " | tarkov_tier: " + hasTarkovTier);
-
         String tier = detectTarkovMobTier(entity);
         plugin.getLogger().info("§b[EMWM] §f阶段2 tier检测: " + tier + " | elitemobsMeta=" + hasEliteMobsMeta);
 
         if (tier != null) {
-            plugin.getLogger().info("§b[EMWM] §a直接绑定: tier=" + tier);
-            bindAndConfigure(entity, tier);
+            // 尝试通过 tier 匹配模板/配置
+            EMWMWeaponConfig tierConfig = configCache.getConfig(tier);
+            if (tierConfig != null) {
+                plugin.getLogger().info("§b[EMWM] §a通过tier匹配到模板: " + tier);
+                bindWithEMWMConfig(entity, tierConfig);
+                return;
+            }
+            // 没有匹配的模板，用 config.yml 武器池构造一个 EMWMWeaponConfig
+            plugin.getLogger().info("§b[EMWM] §e无模板匹配，用config.yml武器池构造配置: tier=" + tier);
+            EMWMWeaponConfig fallbackConfig = buildFallbackConfig(tier);
+            bindWithEMWMConfig(entity, fallbackConfig);
             return;
         }
 
@@ -79,13 +90,19 @@ public class EliteMobSpawnListener implements Listener {
                     return;
                 }
 
-                // 回退tier
+                // 回退tier — 统一走 EMWM 路径
                 String delayedTier = detectTarkovMobTier(entity);
                 plugin.getLogger().info("§b[EMWM] §e延迟重检结果: tier=" + delayedTier
                         + " name=" + entity.getCustomName()
                         + " meta=" + hasEliteMobsMeta);
                 if (delayedTier != null) {
-                    bindAndConfigure(entity, delayedTier);
+                    EMWMWeaponConfig tierConfig = configCache.getConfig(delayedTier);
+                    if (tierConfig != null) {
+                        bindWithEMWMConfig(entity, tierConfig);
+                    } else {
+                        EMWMWeaponConfig fallbackConfig = buildFallbackConfig(delayedTier);
+                        bindWithEMWMConfig(entity, fallbackConfig);
+                    }
                 } else {
                     plugin.debug("延迟重试仍无结果，跳过: " + entity.getType());
                 }
@@ -99,24 +116,25 @@ public class EliteMobSpawnListener implements Listener {
      */
     private EMWMWeaponConfig tryGetEMWMConfig(LivingEntity entity) {
         String customName = entity.getCustomName();
-        if (customName == null) return null;
 
-        // 尝试匹配配置文件名
-        String matchedFileName = configCache.matchConfigByName(customName);
-        if (matchedFileName != null) {
-            EMWMWeaponConfig config = configCache.getConfig(matchedFileName);
-            if (config != null) {
-                plugin.debug("[EMWM] 匹配到配置: " + matchedFileName + " → " + config.getWeaponPool());
-                return config;
+        // 尝试匹配配置文件名（需要 customName）
+        if (customName != null) {
+            String matchedFileName = configCache.matchConfigByName(customName);
+            if (matchedFileName != null) {
+                EMWMWeaponConfig config = configCache.getConfig(matchedFileName);
+                if (config != null) {
+                    plugin.debug("[EMWM] 名称匹配成功: " + matchedFileName + " → " + config.getWeaponPool());
+                    return config;
+                }
             }
         }
 
-        // 尝试通过tier匹配模板
+        // 尝试通过tier匹配模板（不需要 customName，靠 metadata/类型判断）
         String tier = detectTarkovMobTier(entity);
         if (tier != null && configCache.hasConfig(tier)) {
             EMWMWeaponConfig config = configCache.getConfig(tier);
             if (config != null) {
-                plugin.debug("[EMWM] 通过tier匹配模板: " + tier + " → " + config.getWeaponPool());
+                plugin.debug("[EMWM] tier匹配成功: " + tier + " → " + config.getWeaponPool());
                 return config;
             }
         }
@@ -142,20 +160,28 @@ public class EliteMobSpawnListener implements Listener {
             return;
         }
 
-        plugin.debug("[EMWM] 准备绑定武器: " + weapon + " | 配置: " + config);
+        // 获取tier（用于AI注册 + 耐久倍率）
+        String tier = detectTarkovMobTier(entity);
+        if (tier == null) {
+            tier = "scav"; // 默认tier
+        }
 
-        // 绑定武器（使用配置参数）
-        boolean bound = weaponManager.bindWeaponWithConfig(entity, weapon, config);
+        // 耐久倍率（恢复 tier-settings.<tier>.durability-multiplier 功能，旧 bindAndConfigure 具备）
+        double durabilityMultiplier = plugin.getConfig().getDouble("tier-settings." + tier + ".durability-multiplier", 1.0);
+
+        plugin.debug("[EMWM] 准备绑定武器: " + weapon + " | 配置: " + config + " | 耐久倍率: " + durabilityMultiplier);
+
+        // 绑定武器（使用配置参数 + 耐久倍率）
+        boolean bound = weaponManager.bindWeaponWithConfig(entity, weapon, config, durabilityMultiplier);
 
         if (!bound) {
             plugin.getLogger().warning("[EMWM] 武器绑定失败: " + entity.getType() + " | 武器: " + weapon);
             return;
         }
 
-        // 获取tier（用于AI注册）
-        String tier = detectTarkovMobTier(entity);
-        if (tier == null) {
-            tier = "scav"; // 默认tier
+        // 禁用原版近战AI（spawn时清除一次目标；AI引擎接管后每tick也会清）
+        if (entity instanceof Mob mob) {
+            mob.setTarget(null);
         }
 
         // 设置metadata标记（与旧逻辑兼容）
@@ -183,7 +209,7 @@ public class EliteMobSpawnListener implements Listener {
             if (!entity.isValid() || entity.isDead()) return;
             if (!weaponManager.hasWeapon(entity) || !isHoldingWeapon(entity, weapon)) {
                 plugin.debug("[EMWM] EliteMobs 覆盖了主手武器，重新绑定: " + entity.getType());
-                weaponManager.bindWeaponWithConfig(entity, weapon, config);
+                weaponManager.bindWeaponWithConfig(entity, weapon, config, durabilityMultiplier);
             }
         }, 20L);
     }
@@ -202,47 +228,52 @@ public class EliteMobSpawnListener implements Listener {
     }
 
     /**
-     * 使用tier绑定武器（旧逻辑，回退方案）
+     * 从 config.yml 武器池构造兜底 EMWMWeaponConfig
+     * 统一绑定路径：即使没有 EMWM 配置/模板，也走 bindWithEMWMConfig
+     * 这样所有怪物都有一致的 AI 元数据（aggressiveness/maxRange/spread 等）
      */
-    private void bindAndConfigure(LivingEntity entity, String tier) {
-        String weapon = weaponManager.getRandomWeaponForTier(tier);
-        double durabilityMultiplier = plugin.getConfig().getDouble("tier-settings." + tier + ".durability-multiplier", 1.0);
-        plugin.debug("准备绑定武器: " + weapon + " | 耐久倍率: " + durabilityMultiplier);
+    private EMWMWeaponConfig buildFallbackConfig(String tier) {
+        EMWMWeaponConfig config = new EMWMWeaponConfig();
 
-        boolean bound = weaponManager.bindWeapon(entity, weapon, durabilityMultiplier);
-
-        if (!bound) {
-            plugin.getLogger().warning("武器绑定失败: " + entity.getType() + " | 武器: " + weapon + " | tier: " + tier);
-            return;
+        // 从 config.yml 读取武器池（null-safe：mock 或未配置时回退默认武器）
+        List<String> rawPool = switch (tier.toLowerCase()) {
+            case "scav" -> plugin.getConfig().getStringList("weapons.scav-pool");
+            case "pmc" -> plugin.getConfig().getStringList("weapons.pmc-pool");
+            case "boss" -> plugin.getConfig().getStringList("weapons.boss-pool");
+            default -> null;
+        };
+        List<String> pool;
+        if (rawPool != null && !rawPool.isEmpty()) {
+            pool = rawPool;
+        } else {
+            // getString 在 mock/未配置时可能返回 null，需兜底非空武器名
+            String defaultWeapon = plugin.getConfig().getString("weapons.default-weapon", "AK_47");
+            if (defaultWeapon == null) defaultWeapon = "AK_47";
+            pool = List.of(defaultWeapon);
         }
+        config.setWeaponPool(pool);
 
-        entity.setMetadata("emwm_tier", new FixedMetadataValue(plugin, tier));
-        entity.setMetadata("emwm_combat_state", new FixedMetadataValue(plugin, "patrol"));
-        entity.setMetadata("emwm_last_shot", new FixedMetadataValue(plugin, 0L));
-        entity.setMetadata("emwm_ai_enabled", new FixedMetadataValue(plugin, true));
+        // tier-based 默认行为参数（确保 AI 元数据一致）
+        double aggressiveness = switch (tier.toLowerCase()) {
+            case "boss" -> 0.9;
+            case "pmc" -> 0.7;
+            default -> 0.5;
+        };
+        config.setAggressiveness(aggressiveness);
 
-        // 禁用原版近战
-        disableMeleeAttack(entity);
+        int maxRange = switch (tier.toLowerCase()) {
+            case "boss" -> 50;
+            case "pmc" -> 40;
+            default -> 30;
+        };
+        config.setMaxRange(maxRange);
 
-        // 注册到AI引擎
-        aiManager.registerMob(entity, tier);
+        // 耐久倍率（从 config.yml 读取，传给 bindWeaponWithConfig 通过 WM 兜底）
+        // 注意：bindWeaponWithConfig 不直接使用 durabilityMultiplier，
+        // 但 WM 原生武器参数会通过 WeaponMetaCache 兜底
 
-        plugin.debug("精英怪生成绑定武器: " + entity.getType() + " | 武器: " + weapon + " | tier: " + tier);
-
-        // 防EliteMobs覆盖武器（延迟20tick，同时检查主手实际物品）
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (!entity.isValid() || entity.isDead()) return;
-            if (!weaponManager.hasWeapon(entity) || !isHoldingWeapon(entity, weapon)) {
-                plugin.debug("[EMWM] EliteMobs 覆盖了主手武器，重新绑定: " + entity.getType());
-                weaponManager.bindWeapon(entity, weapon, durabilityMultiplier);
-            }
-        }, 20L);
-    }
-
-    private void disableMeleeAttack(LivingEntity entity) {
-        if (entity instanceof Mob mob) {
-            mob.setTarget(null);
-        }
+        plugin.debug("[EMWM] 构造兜底配置: tier=" + tier + " | 武器池=" + pool + " | aggressiveness=" + aggressiveness);
+        return config;
     }
 
     @EventHandler(priority = EventPriority.NORMAL)
@@ -250,11 +281,68 @@ public class EliteMobSpawnListener implements Listener {
         if (!(event.getEntity() instanceof LivingEntity entity)) return;
 
         if (weaponManager.hasWeapon(entity)) {
+            // 触发 EMWMKillEvent 供 Chemdah 等插件监听
+            fireKillEvent(entity, event);
+
             weaponManager.unbindWeapon(entity);
             plugin.debug("精英怪死亡，解绑武器: " + entity.getType());
             // 注销AI引擎
             aiManager.unregisterMob(entity);
         }
+    }
+
+    /**
+     * 触发 EMWMKillEvent
+     */
+    private void fireKillEvent(LivingEntity entity, EntityDeathEvent event) {
+        try {
+            Player killer = entity.getKiller();
+
+            // 读取伤害类型
+            String damageTypeStr = getMetaString(entity, "emwm_last_damage_type");
+            EMWMKillEvent.KillMethod killMethod;
+            if (damageTypeStr != null) {
+                try {
+                    killMethod = EMWMKillEvent.KillMethod.valueOf(damageTypeStr);
+                } catch (IllegalArgumentException e) {
+                    killMethod = EMWMKillEvent.KillMethod.OTHER;
+                }
+            } else {
+                // 没有记录伤害类型，根据最后的伤害原因推断
+                if (entity.getLastDamageCause() != null) {
+                    switch (entity.getLastDamageCause().getCause()) {
+                        case PROJECTILE -> killMethod = EMWMKillEvent.KillMethod.GUN;
+                        case ENTITY_EXPLOSION, BLOCK_EXPLOSION -> killMethod = EMWMKillEvent.KillMethod.GRENADE;
+                        case ENTITY_ATTACK, ENTITY_SWEEP_ATTACK -> killMethod = EMWMKillEvent.KillMethod.MELEE;
+                        default -> killMethod = EMWMKillEvent.KillMethod.OTHER;
+                    }
+                } else {
+                    killMethod = EMWMKillEvent.KillMethod.OTHER;
+                }
+            }
+
+            String tier = getMetaString(entity, "emwm_tier");
+            String weapon = getMetaString(entity, "emwm_weapon");
+            String combatState = getMetaString(entity, "emwm_combat_state");
+
+            EMWMKillEvent killEvent = new EMWMKillEvent(entity, killer, killMethod, tier, weapon, combatState);
+            Bukkit.getPluginManager().callEvent(killEvent);
+
+            plugin.debug("[EMWM] 击杀事件: victim=" + entity.getName()
+                    + " killer=" + (killer != null ? killer.getName() : "null")
+                    + " method=" + killMethod
+                    + " tier=" + tier);
+        } catch (Exception e) {
+            plugin.getLogger().warning("触发 EMWMKillEvent 失败: " + e.getMessage());
+        }
+    }
+
+    private String getMetaString(LivingEntity entity, String key) {
+        if (!entity.hasMetadata(key)) return null;
+        return entity.getMetadata(key).stream()
+                .findFirst()
+                .map(v -> v.asString())
+                .orElse(null);
     }
 
     private String detectTarkovMobTier(LivingEntity entity) {

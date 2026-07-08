@@ -17,10 +17,14 @@ import com.emwbridge.managers.ExtremeEventManager;
 import com.emwbridge.managers.MobWeaponManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
+import org.bukkit.persistence.PersistentDataContainer;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.util.Vector;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -43,6 +47,7 @@ public class TarkovAIEngine {
     private final ThrowableManager throwableManager;
 
     private final Map<UUID, AIState> activeMobs = new ConcurrentHashMap<>();
+    private final Map<UUID, Integer> unreachableLogCooldown = new ConcurrentHashMap<>();
     private Object schedulerTask;
     private int aiTickRate = 4;
     private int tickCounter = 0;
@@ -61,11 +66,15 @@ public class TarkovAIEngine {
 
     private boolean useEMEventDriven = false;
 
+    // P0-7 修复：PersistentDataContainer 键，用于服务器重启后恢复 AI 状态
+    private final NamespacedKey tierKey;
+
     public TarkovAIEngine(EMWMBridge plugin, MobWeaponManager weaponManager,
                           ExtremeEventManager extremeEventManager) {
         this.plugin = plugin;
         this.weaponManager = weaponManager;
         this.extremeEventManager = extremeEventManager;
+        this.tierKey = new NamespacedKey(plugin, "emwm_tier_pdc");
 
         this.eventDispatcher = new AIEventDispatcher();
         AuditoryPerception auditory = new AuditoryPerception();
@@ -166,7 +175,21 @@ public class TarkovAIEngine {
                     it.remove();
                     continue;
                 }
-                tickEntity(entity, state);
+                // P0-5 修复：Folia 环境下将实体操作调度到正确的 Region 线程
+                if (plugin.isFolia()) {
+                    try {
+                        entity.getScheduler().execute(plugin, () -> {
+                            if (entity.isValid() && !entity.isDead()) {
+                                tickEntity(entity, state);
+                            }
+                        }, null, 1);
+                    } catch (Exception e) {
+                        // Folia EntityScheduler 不可用时降级为直接调用
+                        tickEntity(entity, state);
+                    }
+                } else {
+                    tickEntity(entity, state);
+                }
             }
         };
 
@@ -198,6 +221,7 @@ public class TarkovAIEngine {
         personalityManager.removeEntity(uuid);
         factionManager.removeEntity(uuid);
         squadManager.removeEntity(uuid);
+        unreachableLogCooldown.remove(uuid);
     }
 
     private void tickEntity(LivingEntity entity, AIState state) {
@@ -206,9 +230,26 @@ public class TarkovAIEngine {
             mob.setTarget(null);
         }
 
+        // 有主目标时让实体面向目标方向，确保 FOV 检查能通过
+        UUID preTargetUuid = aiVisionManager.getPrimaryTarget(entity.getUniqueId());
+        if (preTargetUuid != null) {
+            Player preTarget = Bukkit.getPlayer(preTargetUuid);
+            if (preTarget != null && preTarget.isOnline() && !preTarget.isDead()) {
+                Location mobLoc = entity.getLocation();
+                Vector dir = preTarget.getLocation().toVector().subtract(mobLoc.toVector()).setY(0);
+                if (dir.lengthSquared() > 0.01) {
+                    dir.normalize();
+                    float yaw = (float) Math.toDegrees(Math.atan2(-dir.getX(), dir.getZ()));
+                    entity.setRotation(yaw, mobLoc.getPitch());
+                }
+            }
+        }
+
         UUID uuid = entity.getUniqueId();
         var personality = personalityManager.getPersonality(uuid);
-        double hpRatio = entity.getHealth() / entity.getMaxHealth();
+        // P0-9 修复：防止 getMaxHealth() 为零导致除零和 NaN 传播
+        double maxHealth = entity.getMaxHealth();
+        double hpRatio = maxHealth > 0 ? entity.getHealth() / maxHealth : 1.0;
 
         double tierVisionRange = plugin.getConfig().getDouble("tier-settings." + state.tier + ".vision-range", 50.0);
         aiVisionManager.getVisual().setMaxVisionRange(tierVisionRange);
@@ -217,7 +258,7 @@ public class TarkovAIEngine {
 
         List<Player> nearbyPlayers = entity.getWorld().getPlayers().stream()
                 .filter(p -> !p.isDead() && p.isOnline()
-                        && p.getLocation().distance(entity.getLocation()) < Math.max(tierVisionRange, tierSoundRange) + 20)
+                        && safeDistance(p.getLocation(), entity.getLocation()) < Math.max(tierVisionRange, tierSoundRange) + 20)
                 .toList();
 
         for (Player p : nearbyPlayers) {
@@ -254,18 +295,29 @@ public class TarkovAIEngine {
         AlertStage alert = aiVisionManager.getAlertStage(uuid, primaryTarget.getUniqueId());
 
         // Y轴不可达检测：目标远高于AI(>6格)且无视线 → 快速衰减，不做交战行为
+        // 使用自定义射线检测（与曝光计算一致），避免 Bukkit hasLineOfSight 不一致导致死循环
         boolean heightUnreachable = primaryTarget.getLocation().getY() - entity.getLocation().getY() > 6
-                && !entity.hasLineOfSight(primaryTarget);
+                && !aiVisionManager.getVisual().hasLineOfSight(entity, primaryTarget);
         if (heightUnreachable && alert != null && alert.isHostile()) {
-            // 还在RED但有视觉丢失+高度不可达 → 快速衰减暴露值
+            // 快速衰减暴露值
             aiVisionManager.fastDecayExposure(uuid, primaryTarget.getUniqueId());
-            plugin.debug("[AI] " + entity.getName() + " 目标不可达(太高)，衰减警觉");
+            // 日志限流：每5秒（25 tick @ aiTickRate=4）最多打印一次
+            int cooldown = unreachableLogCooldown.getOrDefault(uuid, 0);
+            if (cooldown <= 0) {
+                plugin.debug("[AI] " + entity.getName() + " 目标不可达(太高)，衰减警觉");
+                unreachableLogCooldown.put(uuid, 25);
+            } else {
+                unreachableLogCooldown.put(uuid, cooldown - 1);
+            }
             alert = aiVisionManager.getAlertStage(uuid, primaryTarget.getUniqueId());
             if (alert == null || !alert.isHostile()) {
                 handleNoTargetState(entity, state);
                 state.target = null;
+                unreachableLogCooldown.remove(uuid);
                 return;
             }
+        } else {
+            unreachableLogCooldown.remove(uuid);
         }
 
         state.ticksSinceEngage++;
@@ -306,8 +358,17 @@ public class TarkovAIEngine {
                 entity, primaryTarget, hasEyeLOS, hasBodyLOS, distance,
                 state.tier, tactics.isSuppressing(uuid));
 
+        // P0-3 修复：接入极限事件系统（恐慌/肾上腺素/战术失误/幸运一击）
+        extremeEventManager.checkExtremeEvents(entity, primaryTarget, state.tier);
+
         executeTacticalAction(entity, primaryTarget, uuid, hpRatio, distance, exposure,
                 hasEyeLOS, hasBodyLOS, decision, aim, tacticalAction, personality);
+
+        // P0-3 修复：应用极限事件速度修正（肾上腺素加速/战术失误减速）
+        double speedMod = extremeEventManager.getSpeedModifier(entity);
+        if (speedMod != 1.0 && entity.getVelocity().lengthSquared() > 0.001) {
+            entity.setVelocity(entity.getVelocity().multiply(speedMod));
+        }
 
         if (!coverMovement.isBehindCover(entity, primaryTarget) && isOpenArea(entity)) {
             if (hpRatio < 0.7 && Math.random() < 0.15) {
@@ -398,12 +459,17 @@ public class TarkovAIEngine {
                         tactics.exitSuppress(uuid);
                     }
 
-                    boolean canShoot = weaponManager.hasWeapon(entity) && hasBodyLOS && tactics.shouldShoot(uuid, hpRatio, exposure);
+                    // 压制状态下允许无BodyLOS射击（朝目标大致方向）
+                    boolean canShoot = weaponManager.hasWeapon(entity)
+                            && (hasBodyLOS || tactics.isSuppressing(uuid))
+                            && tactics.shouldShoot(uuid, hpRatio, exposure);
                     if (canShoot) {
                         double shootChance = personality.aggressiveness * 0.8;
                         if (currentAlert == AlertStage.RED) shootChance *= 1.5;
                         if (currentAlert == AlertStage.ORANGE) shootChance *= 1.2;
                         if (tactics.isSuppressing(uuid)) shootChance = 0.6;
+                        // P0-3 修复：应用极限事件射速修正（恐慌模式/肾上腺素）
+                        shootChance *= extremeEventManager.getFireRateModifier(entity);
                         if (Math.random() < shootChance) {
                             if (weaponManager.shoot(entity, aim.aimPoint, distance > hipfireRange)) {
                                 tactics.recordShot(uuid);
@@ -577,14 +643,14 @@ public class TarkovAIEngine {
         Location center = primaryTarget.getLocation();
         return (int) entity.getWorld().getPlayers().stream()
                 .filter(p -> !p.isDead() && !p.equals(primaryTarget)
-                        && p.getLocation().distance(center) < radius)
+                        && safeDistance(p.getLocation(), center) < radius)
                 .count();
     }
 
     private void flashNearbyAI(Location center, double radius) {
         center.getWorld().getEntitiesByClass(LivingEntity.class).stream()
                 .filter(e -> e.hasMetadata("emwm_ai_enabled")
-                        && e.getLocation().distance(center) < radius)
+                        && safeDistance(e.getLocation(), center) < radius)
                 .forEach(ai -> aiVisionManager.flashBlind(ai));
     }
 
@@ -613,6 +679,9 @@ public class TarkovAIEngine {
         tactics.registerMob(uuid);
         throwableManager.registerMob(uuid);
         entity.setMetadata("emwm_ai_enabled", new org.bukkit.metadata.FixedMetadataValue(plugin, true));
+
+        // P0-7 修复：将 tier 持久化到 PDC，支持服务器重启后恢复 AI
+        entity.getPersistentDataContainer().set(tierKey, PersistentDataType.STRING, tier);
     }
 
     public void unregisterMob(LivingEntity entity) {
@@ -620,6 +689,36 @@ public class TarkovAIEngine {
         activeMobs.remove(uuid);
         cleanupMob(uuid);
         entity.removeMetadata("emwm_ai_enabled", plugin);
+        // P0-7 修复：移除 PDC 标记
+        entity.getPersistentDataContainer().remove(tierKey);
+    }
+
+    /**
+     * P0-7 修复：扫描所有已加载的活体实体，恢复具有 emwm_tier_pdc 标记的 AI 状态。
+     * 在 restart() 或服务器重启后调用，防止"幽灵怪"（有 PDC 标记但 AI 未注册）。
+     *
+     * @return 恢复的实体数量
+     */
+    public int recoverMobs() {
+        int recovered = 0;
+        for (org.bukkit.World world : Bukkit.getWorlds()) {
+            for (LivingEntity entity : world.getLivingEntities()) {
+                if (activeMobs.containsKey(entity.getUniqueId())) continue;
+                if (!entity.isValid() || entity.isDead()) continue;
+                PersistentDataContainer pdc = entity.getPersistentDataContainer();
+                if (pdc.has(tierKey, PersistentDataType.STRING)) {
+                    String tier = pdc.get(tierKey, PersistentDataType.STRING);
+                    if (tier != null) {
+                        registerMob(entity, tier);
+                        recovered++;
+                    }
+                }
+            }
+        }
+        if (recovered > 0) {
+            plugin.getLogger().info("[EMWM] 恢复了 " + recovered + " 个 AI 实体（PDC 持久化恢复）");
+        }
+        return recovered;
     }
 
     public boolean isActive(LivingEntity entity) {

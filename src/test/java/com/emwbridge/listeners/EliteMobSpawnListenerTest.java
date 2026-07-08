@@ -2,6 +2,7 @@ package com.emwbridge.listeners;
 
 import com.emwbridge.EMWMBridge;
 import com.emwbridge.config.EMWMConfigCache;
+import com.emwbridge.config.EMWMWeaponConfig;
 import com.emwbridge.managers.MobWeaponManager;
 import com.emwbridge.managers.TarkovAIManager;
 import org.bukkit.Location;
@@ -35,6 +36,7 @@ import java.util.logging.Logger;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -71,6 +73,7 @@ class EliteMobSpawnListenerTest {
         when(plugin.getMobWeaponManager()).thenReturn(weaponManager);
         when(plugin.getTarkovAIManager()).thenReturn(aiManager);
         when(plugin.getEMWMConfigCache()).thenReturn(configCache);
+        // 旧方法已删除：matchConfigByName / getConfig / hasConfig 默认返回空 → 走 fallback 路径
         when(configCache.matchConfigByName(anyString())).thenReturn(null);
         when(configCache.getConfig(anyString())).thenReturn(null);
         when(configCache.hasConfig(anyString())).thenReturn(false);
@@ -79,15 +82,16 @@ class EliteMobSpawnListenerTest {
         config = mock(FileConfiguration.class);
         when(plugin.getConfig()).thenReturn(config);
         when(config.getDouble(anyString(), anyDouble())).thenAnswer(inv -> inv.getArgument(1));
+        // 武器池未配置 → buildFallbackConfig 回退默认 "AK_47"（getStringList 返回 null 已做 null-safe）
+        when(config.getStringList(anyString())).thenReturn(null);
         when(server.getScheduler()).thenReturn(scheduler);
         when(server.getPluginManager()).thenReturn(pluginManager);
 
-        when(weaponManager.getRandomWeaponForTier(anyString())).thenAnswer(inv -> {
-            String tier = inv.getArgument(0);
-            return tier + "_weapon_01";
-        });
-        when(weaponManager.bindWeapon(any(LivingEntity.class), anyString(), anyDouble())).thenReturn(true);
+        // 新绑定路径所需 mock：武器存在 + 已绑定 + 绑定成功
+        when(weaponManager.weaponExists(anyString())).thenReturn(true);
         when(weaponManager.hasWeapon(any(LivingEntity.class))).thenReturn(true);
+        when(weaponManager.bindWeaponWithConfig(any(LivingEntity.class), anyString(), any(EMWMWeaponConfig.class), anyDouble()))
+                .thenReturn(true);
 
         listener = new EliteMobSpawnListener(plugin);
     }
@@ -137,7 +141,7 @@ class EliteMobSpawnListenerTest {
 
             listener.onCreatureSpawn(event);
 
-            verify(weaponManager).bindWeapon(eq(mob), eq("boss_weapon_01"), anyDouble());
+            verify(weaponManager).bindWeaponWithConfig(eq(mob), eq("AK_47"), any(EMWMWeaponConfig.class), anyDouble());
             verify(aiManager).registerMob(eq(mob), eq("boss"));
         }
 
@@ -150,7 +154,7 @@ class EliteMobSpawnListenerTest {
 
             listener.onCreatureSpawn(event);
 
-            verify(weaponManager).bindWeapon(eq(mob), eq("boss_weapon_01"), anyDouble());
+            verify(weaponManager).bindWeaponWithConfig(eq(mob), eq("AK_47"), any(EMWMWeaponConfig.class), anyDouble());
         }
 
         @Test
@@ -162,7 +166,7 @@ class EliteMobSpawnListenerTest {
 
             listener.onCreatureSpawn(event);
 
-            verify(weaponManager).bindWeapon(eq(mob), eq("pmc_weapon_01"), anyDouble());
+            verify(weaponManager).bindWeaponWithConfig(eq(mob), eq("AK_47"), any(EMWMWeaponConfig.class), anyDouble());
         }
 
         @Test
@@ -174,7 +178,7 @@ class EliteMobSpawnListenerTest {
 
             listener.onCreatureSpawn(event);
 
-            verify(weaponManager).bindWeapon(eq(mob), eq("scav_weapon_01"), anyDouble());
+            verify(weaponManager).bindWeaponWithConfig(eq(mob), eq("AK_47"), any(EMWMWeaponConfig.class), anyDouble());
         }
 
         @Test
@@ -188,7 +192,7 @@ class EliteMobSpawnListenerTest {
 
             listener.onCreatureSpawn(event);
 
-            verify(weaponManager).bindWeapon(eq(mob), eq("scav_weapon_01"), anyDouble());
+            verify(weaponManager).bindWeaponWithConfig(eq(mob), eq("AK_47"), any(EMWMWeaponConfig.class), anyDouble());
         }
 
         @Test
@@ -203,7 +207,7 @@ class EliteMobSpawnListenerTest {
 
             listener.onCreatureSpawn(event);
 
-            verify(weaponManager, never()).bindWeapon(any(), anyString(), anyDouble());
+            verify(weaponManager, never()).bindWeaponWithConfig(any(), anyString(), any(), anyDouble());
             verify(aiManager, never()).registerMob(any(), anyString());
         }
 
@@ -216,7 +220,7 @@ class EliteMobSpawnListenerTest {
 
             listener.onCreatureSpawn(event);
 
-            verify(weaponManager, never()).bindWeapon(any(), anyString(), anyDouble());
+            verify(weaponManager, never()).bindWeaponWithConfig(any(), anyString(), any(), anyDouble());
             verify(aiManager, never()).registerMob(any(), anyString());
         }
     }
@@ -235,9 +239,8 @@ class EliteMobSpawnListenerTest {
             listener.onCreatureSpawn(event);
 
             ArgumentCaptor<String> weaponCaptor = ArgumentCaptor.forClass(String.class);
-            verify(weaponManager).bindWeapon(eq(mob), weaponCaptor.capture(), anyDouble());
+            verify(weaponManager).bindWeaponWithConfig(eq(mob), weaponCaptor.capture(), any(EMWMWeaponConfig.class), anyDouble());
             assertNotNull(weaponCaptor.getValue());
-            assertTrue(weaponCaptor.getValue().contains("scav"));
 
             verify(aiManager).registerMob(eq(mob), eq("scav"));
             verify(mob).setTarget(null);
@@ -247,7 +250,8 @@ class EliteMobSpawnListenerTest {
         @DisplayName("武器绑定失败时应跳过AI注册")
         void failedBindingShouldSkipAIRegister() {
             Mob mob = createMockMob(EntityType.ZOMBIE, "§7Scav");
-            when(weaponManager.bindWeapon(any(LivingEntity.class), anyString(), anyDouble())).thenReturn(false);
+            when(weaponManager.bindWeaponWithConfig(any(LivingEntity.class), anyString(), any(EMWMWeaponConfig.class), anyDouble()))
+                    .thenReturn(false);
 
             CreatureSpawnEvent event = new CreatureSpawnEvent(
                 mob, CreatureSpawnEvent.SpawnReason.CUSTOM);
@@ -313,8 +317,9 @@ class EliteMobSpawnListenerTest {
 
             listener.onCreatureSpawn(event);
 
-            verify(weaponManager).bindWeapon(eq(mob), eq("scav_weapon_01"), anyDouble());
+            verify(weaponManager).bindWeaponWithConfig(eq(mob), eq("AK_47"), any(EMWMWeaponConfig.class), anyDouble());
             verify(aiManager).registerMob(eq(mob), eq("scav"));
+            // 防覆盖重检任务（20tick）
             verify(scheduler).runTaskLater(eq(plugin), any(Runnable.class), eq(20L));
         }
 
@@ -349,7 +354,7 @@ class EliteMobSpawnListenerTest {
             when(mob.getCustomName()).thenReturn("§7Scav");
             delayedTask.run();
 
-            verify(weaponManager, never()).bindWeapon(any(), anyString(), anyDouble());
+            verify(weaponManager, never()).bindWeaponWithConfig(any(), anyString(), any(), anyDouble());
         }
     }
 
@@ -393,11 +398,15 @@ class EliteMobSpawnListenerTest {
         @Test
         @DisplayName("应从配置读取对应 tier 的耐久倍率")
         void shouldReadDurabilityMultiplierFromConfig() {
-            org.bukkit.configuration.file.FileConfiguration config = 
-                mock(org.bukkit.configuration.file.FileConfiguration.class);
-            when(plugin.getConfig()).thenReturn(config);
-            when(config.getDouble(eq("tier-settings.boss.durability-multiplier"), eq(1.0)))
+            FileConfiguration durabilityConfig = mock(FileConfiguration.class);
+            when(plugin.getConfig()).thenReturn(durabilityConfig);
+            when(durabilityConfig.getDouble(eq("tier-settings.boss.durability-multiplier"), eq(1.0)))
                 .thenReturn(2.5);
+            when(durabilityConfig.getStringList(anyString())).thenReturn(null);
+            when(durabilityConfig.getString(anyString(), anyString())).thenReturn("AK_47");
+            when(weaponManager.weaponExists(anyString())).thenReturn(true);
+            when(weaponManager.bindWeaponWithConfig(any(LivingEntity.class), anyString(), any(EMWMWeaponConfig.class), anyDouble()))
+                .thenReturn(true);
 
             Mob mob = createMockMob(EntityType.ZOMBIE, "§cBoss");
             CreatureSpawnEvent event = new CreatureSpawnEvent(
@@ -405,7 +414,7 @@ class EliteMobSpawnListenerTest {
 
             listener.onCreatureSpawn(event);
 
-            verify(weaponManager).bindWeapon(eq(mob), anyString(), eq(2.5));
+            verify(weaponManager).bindWeaponWithConfig(eq(mob), anyString(), any(EMWMWeaponConfig.class), eq(2.5));
         }
     }
 }

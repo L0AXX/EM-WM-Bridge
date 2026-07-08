@@ -46,6 +46,14 @@ class TarkovAIEngineTest {
         entityUuid = UUID.randomUUID();
         when(entity.getUniqueId()).thenReturn(entityUuid);
         when(plugin.getLogger()).thenReturn(mock(java.util.logging.Logger.class));
+        when(plugin.getName()).thenReturn("EMWMBridge");
+        // P0-7: registerMob/unregisterMob 使用 PersistentDataContainer
+        var pdc = mock(org.bukkit.persistence.PersistentDataContainer.class);
+        when(entity.getPersistentDataContainer()).thenReturn(pdc);
+        // P0-7: registerMob 设置 metadata
+        doNothing().when(entity).setMetadata(anyString(), any());
+        doNothing().when(entity).removeMetadata(anyString(), any());
+        when(entity.hasMetadata(anyString())).thenReturn(false);
         engine = new TarkovAIEngine(plugin, weaponManager, extremeEventManager);
     }
 
@@ -60,6 +68,7 @@ class TarkovAIEngineTest {
             var testWeaponManager = mock(MobWeaponManager.class);
             var testExtremeManager = mock(ExtremeEventManager.class);
             when(testPlugin.getLogger()).thenReturn(mock(java.util.logging.Logger.class));
+            when(testPlugin.getName()).thenReturn("EMWMBridge");
             
             var testEngine = new TarkovAIEngine(testPlugin, testWeaponManager, testExtremeManager);
             
@@ -89,6 +98,7 @@ class TarkovAIEngineTest {
             var testWeaponManager = mock(MobWeaponManager.class);
             var testExtremeManager = mock(ExtremeEventManager.class);
             when(testPlugin.getLogger()).thenReturn(mock(java.util.logging.Logger.class));
+            when(testPlugin.getName()).thenReturn("EMWMBridge");
             
             var testEngine = new TarkovAIEngine(testPlugin, testWeaponManager, testExtremeManager);
             
@@ -121,6 +131,7 @@ class TarkovAIEngineTest {
             var testWeaponManager = mock(MobWeaponManager.class);
             var testExtremeManager = mock(ExtremeEventManager.class);
             when(testPlugin.getLogger()).thenReturn(mock(java.util.logging.Logger.class));
+            when(testPlugin.getName()).thenReturn("EMWMBridge");
             
             var testEngine = new TarkovAIEngine(testPlugin, testWeaponManager, testExtremeManager);
             

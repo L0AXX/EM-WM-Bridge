@@ -81,6 +81,17 @@ class AIVisionManagerTest {
         visualField.setAccessible(true);
         visualField.set(visionManager, visual);
 
+        // 默认 mock：面向修正因子为 1.0（正前方）
+        when(visual.getTargetFacingMultiplier(any(Player.class), any(Location.class))).thenReturn(1.0);
+
+        // 修复：stub getEyeLocation() — Mockito 5.x 中 any(Location.class) 不匹配 null，
+        // 不 stub 会导致 getTargetFacingMultiplier mock 未命中，返回 0.0，曝光值永远为 0
+        when(aiEntity.getEyeLocation()).thenReturn(mock(Location.class));
+        // 修复：stub getLocation() — 曝光值达到 RED 时 tickExposure() 行105 调用 ai.getLocation().getY()
+        Location aiLoc = mock(Location.class);
+        when(aiLoc.clone()).thenReturn(aiLoc);
+        when(aiEntity.getLocation()).thenReturn(aiLoc);
+
         visionManager.registerMob(aiUuid);
     }
 
@@ -98,7 +109,7 @@ class AIVisionManagerTest {
         @Test
         @DisplayName("连续可见时曝光值应持续上升")
         void continuousSightShouldIncreaseExposure() {
-            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble())).thenReturn(3.0);
+            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble(), anyDouble())).thenReturn(3.0);
 
             double prev = 0;
             for (int i = 0; i < 10; i++) {
@@ -112,13 +123,13 @@ class AIVisionManagerTest {
         @Test
         @DisplayName("不可见时曝光值应衰减")
         void outOfSightShouldDecayExposure() {
-            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble())).thenReturn(5.0);
+            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble(), anyDouble())).thenReturn(5.0);
             for (int i = 0; i < 20; i++) {
                 visionManager.tickExposure(aiEntity, player1);
             }
             double highExp = visionManager.getExposure(aiUuid, p1Uuid);
 
-            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble())).thenReturn(0.0);
+            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble(), anyDouble())).thenReturn(0.0);
             for (int i = 0; i < 10; i++) {
                 visionManager.tickExposure(aiEntity, player1);
             }
@@ -131,7 +142,7 @@ class AIVisionManagerTest {
         @Test
         @DisplayName("首次 tick 应创建曝光数据")
         void firstTickShouldCreateExposureData() {
-            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble())).thenReturn(2.0);
+            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble(), anyDouble())).thenReturn(2.0);
 
             assertNull(visionManager.getExposureData(aiUuid, p1Uuid));
 
@@ -155,7 +166,7 @@ class AIVisionManagerTest {
         @Test
         @DisplayName("进入 RED 阶段应触发 HOSTILE_LOCK 事件")
         void enteringRedShouldTriggerHostileLock() {
-            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble())).thenReturn(10.0);
+            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble(), anyDouble())).thenReturn(10.0);
 
             java.util.List<AIEventDispatcher.AIEvent> hostileEvents = new ArrayList<>();
             eventDispatcher.register(EventType.HOSTILE_LOCK, hostileEvents::add);
@@ -172,7 +183,7 @@ class AIVisionManagerTest {
         @Test
         @DisplayName("进入 RED 阶段应记录全局仇恨")
         void enteringRedShouldRecordHatred() {
-            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble())).thenReturn(10.0);
+            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble(), anyDouble())).thenReturn(10.0);
 
             for (int i = 0; i < 10; i++) {
                 visionManager.tickExposure(aiEntity, player1);
@@ -188,7 +199,7 @@ class AIVisionManagerTest {
         @Test
         @DisplayName("曝光从高降到低应降级警戒状态")
         void exposureDropShouldDowngradeAlert() {
-            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble())).thenReturn(5.0);
+            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble(), anyDouble())).thenReturn(5.0);
             for (int i = 0; i < 8; i++) {
                 visionManager.tickExposure(aiEntity, player1);
             }
@@ -196,7 +207,7 @@ class AIVisionManagerTest {
             AlertStage highStage = visionManager.getAlertStage(aiUuid, p1Uuid);
             assertEquals(AlertStage.RED, highStage);
 
-            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble())).thenReturn(0.0);
+            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble(), anyDouble())).thenReturn(0.0);
             for (int i = 0; i < 100; i++) {
                 visionManager.tickExposure(aiEntity, player1);
             }
@@ -214,7 +225,7 @@ class AIVisionManagerTest {
         @Test
         @DisplayName("看见目标应广播 SIGHT 事件")
         void seeingTargetShouldBroadcastSightEvent() {
-            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble())).thenReturn(2.0);
+            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble(), anyDouble())).thenReturn(2.0);
 
             java.util.List<AIEventDispatcher.AIEvent> events = new ArrayList<>();
             eventDispatcher.register(EventType.SIGHT, events::add);
@@ -229,7 +240,7 @@ class AIVisionManagerTest {
         @Test
         @DisplayName("多目标应各自广播 SIGHT 事件")
         void multipleTargetsShouldEachBroadcast() {
-            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble())).thenReturn(2.0);
+            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble(), anyDouble())).thenReturn(2.0);
 
             java.util.List<AIEventDispatcher.AIEvent> events = new ArrayList<>();
             eventDispatcher.register(EventType.SIGHT, events::add);
@@ -247,13 +258,13 @@ class AIVisionManagerTest {
         @Test
         @DisplayName("不可见时不应广播 SIGHT 事件")
         void notSeeingShouldNotBroadcastSight() {
-            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble())).thenReturn(2.0);
+            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble(), anyDouble())).thenReturn(2.0);
             visionManager.tickExposure(aiEntity, player1);
 
             java.util.List<AIEventDispatcher.AIEvent> events = new ArrayList<>();
             eventDispatcher.register(EventType.SIGHT, events::add);
 
-            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble())).thenReturn(0.0);
+            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble(), anyDouble())).thenReturn(0.0);
             int beforeSize = events.size();
             visionManager.tickExposure(aiEntity, player1);
 
@@ -268,7 +279,7 @@ class AIVisionManagerTest {
         @Test
         @DisplayName("闪光弹应对所有目标施加致盲")
         void flashBlindShouldApplyToAllTargets() {
-            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble())).thenReturn(3.0);
+            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble(), anyDouble())).thenReturn(3.0);
             visionManager.tickExposure(aiEntity, player1);
             visionManager.tickExposure(aiEntity, player2);
             assertTrue(visionManager.getExposure(aiUuid, p1Uuid) > 0);
@@ -287,7 +298,7 @@ class AIVisionManagerTest {
         @Test
         @DisplayName("闪光弹应清除警戒状态")
         void flashBlindShouldClearAlertStages() {
-            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble())).thenReturn(10.0);
+            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble(), anyDouble())).thenReturn(10.0);
             for (int i = 0; i < 10; i++) {
                 visionManager.tickExposure(aiEntity, player1);
             }
@@ -300,7 +311,7 @@ class AIVisionManagerTest {
         @Test
         @DisplayName("闪光弹应清除主目标")
         void flashBlindShouldClearPrimaryTarget() {
-            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble())).thenReturn(10.0);
+            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble(), anyDouble())).thenReturn(10.0);
             for (int i = 0; i < 10; i++) {
                 visionManager.tickExposure(aiEntity, player1);
             }
@@ -316,7 +327,7 @@ class AIVisionManagerTest {
         @Test
         @DisplayName("闪光弹应广播 FLASH_BLIND 事件")
         void flashBlindShouldBroadcastEvent() {
-            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble())).thenReturn(2.0);
+            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble(), anyDouble())).thenReturn(2.0);
             visionManager.tickExposure(aiEntity, player1);
 
             java.util.List<AIEventDispatcher.AIEvent> events = new ArrayList<>();
@@ -345,8 +356,8 @@ class AIVisionManagerTest {
         @Test
         @DisplayName("应选择曝光值最高的玩家作为主目标")
         void shouldSelectHighestExposureAsPrimary() {
-            when(visual.calculate(eq(aiEntity), eq(player1), anyDouble())).thenReturn(5.0);
-            when(visual.calculate(eq(aiEntity), eq(player2), anyDouble())).thenReturn(1.0);
+            when(visual.calculate(eq(aiEntity), eq(player1), anyDouble(), anyDouble())).thenReturn(5.0);
+            when(visual.calculate(eq(aiEntity), eq(player2), anyDouble(), anyDouble())).thenReturn(1.0);
 
             for (int i = 0; i < 10; i++) {
                 visionManager.tickExposure(aiEntity, player1);
@@ -423,7 +434,7 @@ class AIVisionManagerTest {
         @Test
         @DisplayName("unregisterMob 应清除所有缓存")
         void unregisterMobShouldClearCaches() {
-            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble())).thenReturn(2.0);
+            when(visual.calculate(any(LivingEntity.class), any(Player.class), anyDouble(), anyDouble())).thenReturn(2.0);
             visionManager.tickExposure(aiEntity, player1);
             assertNotNull(visionManager.getExposureData(aiUuid, p1Uuid));
 
@@ -447,8 +458,8 @@ class AIVisionManagerTest {
             when(ai2.getUniqueId()).thenReturn(ai2Uuid);
             visionManager.registerMob(ai2Uuid);
 
-            when(visual.calculate(eq(aiEntity), eq(player1), anyDouble())).thenReturn(3.0);
-            when(visual.calculate(eq(ai2), eq(player1), anyDouble())).thenReturn(0.0);
+            when(visual.calculate(eq(aiEntity), eq(player1), anyDouble(), anyDouble())).thenReturn(3.0);
+            when(visual.calculate(eq(ai2), eq(player1), anyDouble(), anyDouble())).thenReturn(0.0);
 
             visionManager.tickExposure(aiEntity, player1);
 

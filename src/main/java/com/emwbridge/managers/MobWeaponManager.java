@@ -142,6 +142,15 @@ public class MobWeaponManager {
      * @return 是否成功绑定
      */
     public boolean bindWeaponWithConfig(@NotNull LivingEntity entity, @NotNull String weaponTitle, @NotNull EMWMWeaponConfig config) {
+        return bindWeaponWithConfig(entity, weaponTitle, config, 1.0);
+    }
+
+    /**
+     * 使用EMWMWeaponConfig绑定武器（支持耐久倍率）
+     *
+     * @param durabilityMultiplier 耐久倍率（来自 config.yml tier-settings.<tier>.durability-multiplier）
+     */
+    public boolean bindWeaponWithConfig(@NotNull LivingEntity entity, @NotNull String weaponTitle, @NotNull EMWMWeaponConfig config, double durabilityMultiplier) {
         try {
             ItemStack weaponItem = WeaponMechanicsAPI.generateWeapon(weaponTitle);
             if (weaponItem == null || weaponItem.getType() == org.bukkit.Material.AIR) {
@@ -166,7 +175,7 @@ public class MobWeaponManager {
             double adsSpreadMult = resolveAdsSpreadMultiplier(weaponTitle, config);
             int maxRange = resolveMaxRange(weaponTitle, config);
             int effectiveRange = resolveEffectiveRange(weaponTitle, config);
-            int maxDurability = baseDurability;
+            int maxDurability = (int) (baseDurability * durabilityMultiplier);
 
             // 参数来源日志（debug模式）
             if (plugin != null) {
@@ -319,7 +328,7 @@ public class MobWeaponManager {
         try {
             var config = me.deecaad.weaponmechanics.WeaponMechanics.getInstance().getWeaponConfigurations();
             return config.getString(weaponTitle + ".Info.Weapon_Type") != null;
-        } catch (Exception e) {
+        } catch (Throwable e) {
             // 尝试生成武器作为备用检查
             try {
                 ItemStack testItem = WeaponMechanicsAPI.generateWeapon(weaponTitle);
@@ -363,7 +372,9 @@ public class MobWeaponManager {
         try {
             var config = me.deecaad.weaponmechanics.WeaponMechanics.getInstance().getWeaponConfigurations();
             return config.getInt(weaponTitle + ".Reload.Magazine_Size", 30);
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            // 捕获 Throwable 而非 Exception：WeaponMechanics 类加载可能抛 NoClassDefFoundError
+            // （测试环境或 WM 插件未加载时），返回默认值 30
             return 30;
         }
     }
@@ -376,7 +387,7 @@ public class MobWeaponManager {
         try {
             var config = me.deecaad.weaponmechanics.WeaponMechanics.getInstance().getWeaponConfigurations();
             return config.getInt(weaponTitle + ".Reload.Reload_Duration", 60);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             return 60;
         }
     }
@@ -388,16 +399,20 @@ public class MobWeaponManager {
     private long getFireRateMs(String weaponTitle) {
         try {
             var config = me.deecaad.weaponmechanics.WeaponMechanics.getInstance().getWeaponConfigurations();
-            double shotsPerSecond = config.getDouble(weaponTitle + ".Info.Fully_Automatic_Shots_Per_Second", 0);
+            double shotsPerSecond = config.getDouble(weaponTitle + ".Shoot.Fully_Automatic_Shots_Per_Second", 0);
             if (shotsPerSecond > 0) {
                 return (long) (1000.0 / shotsPerSecond);
             }
-            int delayTicks = config.getInt(weaponTitle + ".Info.Delay_Between_Shots", 0);
-            if (delayTicks > 0) {
-                return delayTicks * 50L;
+            int delayMs = config.getInt(weaponTitle + ".Shoot.Delay_Between_Shots", 0);
+            if (delayMs > 0) {
+                return delayMs;
+            }
+            double cooldownSec = config.getDouble(weaponTitle + ".Shoot.Cooldown", 0);
+            if (cooldownSec > 0) {
+                return (long) (cooldownSec * 1000);
             }
             return 300L;
-        } catch (Exception e) {
+        } catch (Throwable e) {
             return 300L;
         }
     }
@@ -409,8 +424,8 @@ public class MobWeaponManager {
     private double getBaseSpread(String weaponTitle) {
         try {
             var config = me.deecaad.weaponmechanics.WeaponMechanics.getInstance().getWeaponConfigurations();
-            return config.getDouble(weaponTitle + ".Info.Spread.Base_Spread", 3.0);
-        } catch (Exception e) {
+            return config.getDouble(weaponTitle + ".Shoot.Spread.Base_Spread", 3.0);
+        } catch (Throwable e) {
             return 3.0;
         }
     }
@@ -422,13 +437,13 @@ public class MobWeaponManager {
     private double getAdsSpreadMultiplier(String weaponTitle) {
         try {
             var config = me.deecaad.weaponmechanics.WeaponMechanics.getInstance().getWeaponConfigurations();
-            String zoomSpread = config.getString(weaponTitle + ".Info.Spread.Modify_Spread_When.Zooming", "50%");
+            String zoomSpread = config.getString(weaponTitle + ".Shoot.Spread.Modify_Spread_When.Zooming", "50%");
             if (zoomSpread != null && zoomSpread.endsWith("%")) {
                 double percent = Double.parseDouble(zoomSpread.replace("%", ""));
                 return percent / 100.0;
             }
             return 0.5;
-        } catch (Exception e) {
+        } catch (Throwable e) {
             return 0.5;
         }
     }
@@ -447,9 +462,33 @@ public class MobWeaponManager {
         }
 
         try {
-            WeaponMechanicsAPI.shoot(entity, instance.getWeaponTitle(), target);
+            // 添加代码层散布偏移（弥补WM生物端射击可能不生效的内置Spread）
+            Location spreadTarget = target.clone();
+            double spread = instance.getBaseSpread();
+            if (spread > 0) {
+                // 安全计算距离（跨世界防护）
+                double distance = 10.0;
+                if (entity.getWorld() != null && target.getWorld() != null
+                        && entity.getWorld().equals(target.getWorld())) {
+                    distance = entity.getLocation().distance(target);
+                }
+                // 每1度散布在10格距离上约产生0.17格偏移（tan(1°) ≈ 0.017）
+                // 简化公式：distance * spread * 0.01，确保最小0.1格偏移
+                double offsetScale = Math.max(distance * spread * 0.01, 0.1);
+                spreadTarget.add(
+                        (Math.random() - 0.5) * 2 * offsetScale,
+                        (Math.random() - 0.5) * offsetScale,
+                        (Math.random() - 0.5) * 2 * offsetScale
+                );
+                plugin.debug("[Shoot] 散布偏移: " + entity.getName()
+                        + " | spread=" + String.format("%.2f", spread)
+                        + " | dist=" + String.format("%.1f", distance)
+                        + " | offset=" + String.format("%.2f", offsetScale));
+            }
+
+            WeaponMechanicsAPI.shoot(entity, instance.getWeaponTitle(), spreadTarget);
             // 生物端 WM Trail 粒子可能不渲染 → 兜底: 强制生成一个枪口粒子包
-            shootEffect(entity, target);
+            shootEffect(entity, spreadTarget);
 
             instance.setCurrentAmmo(instance.getCurrentAmmo() - 1);
             instance.markShot();
@@ -496,7 +535,8 @@ public class MobWeaponManager {
         plugin.debug("开始换弹: " + entity.getName() + " | " + reloadTicks + "tick" +
                 " (速度x" + String.format("%.1f", 1.0 / speedMultiplier) + ")");
 
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+        // P0-5 修复：Folia 环境下使用 EntityScheduler 调度实体状态操作
+        Runnable reloadComplete = () -> {
             if (!entity.isValid() || entity.isDead()) {
                 weaponCache.remove(entity.getUniqueId());
                 return;
@@ -510,7 +550,12 @@ public class MobWeaponManager {
                 entity.removeMetadata("emwm_reloading", plugin);
                 plugin.debug("换弹完成: " + entity.getName() + " | 弹药: " + inst.getMagazineSize());
             }
-        }, reloadTicks);
+        };
+        if (plugin.isFolia()) {
+            entity.getScheduler().execute(plugin, reloadComplete, null, reloadTicks);
+        } else {
+            Bukkit.getScheduler().runTaskLater(plugin, reloadComplete, reloadTicks);
+        }
 
         return true;
     }
@@ -604,6 +649,10 @@ public class MobWeaponManager {
      */
     private void shootEffect(LivingEntity entity, Location target) {
         Location muzzle = entity.getEyeLocation();
+        if (muzzle == null || target == null) return;
+        // P0-8 修复：跨世界安全距离，防止 distance() 抛异常
+        if (muzzle.getWorld() == null || target.getWorld() == null
+                || !muzzle.getWorld().equals(target.getWorld())) return;
         Vector direction = target.toVector().subtract(muzzle.toVector()).normalize();
         double distance = muzzle.distance(target);
 

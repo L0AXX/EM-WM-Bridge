@@ -101,15 +101,31 @@ public class AimConvergenceManager {
             return new AimResult(target.getLocation(), 1.0);
         }
 
-        // 可见 → 选择瞄点
-        Location aimPoint = chooseAimPoint(target, distance, hasEyeLOS, state);
+        // 可见 → 选择瞄点（基于可见部位）
+        Location aimPoint = chooseAimPoint(target, distance, hasEyeLOS, hasBodyLOS, state);
 
         return new AimResult(aimPoint, 0);
     }
 
-    private Location chooseAimPoint(LivingEntity target, double distance, boolean hasEyeLOS, AimState state) {
+    private Location chooseAimPoint(LivingEntity target, double distance, boolean hasEyeLOS, boolean hasBodyLOS, AimState state) {
         double roll = Math.random();
 
+        // 只能看到头 → 强制瞄头
+        if (hasEyeLOS && !hasBodyLOS) {
+            state.headshotAttempts++;
+            return target.getEyeLocation().clone().add(
+                    (Math.random() - 0.5) * 0.3,
+                    (Math.random() - 0.5) * 0.15,
+                    (Math.random() - 0.5) * 0.3
+            );
+        }
+
+        // 只能看到身体（头被遮挡）→ 瞄躯干，不尝试爆头
+        if (hasBodyLOS && !hasEyeLOS) {
+            return target.getLocation().clone().add(0, 0.8, 0);
+        }
+
+        // 头和身体都可见 → 正常选择
         if (distance > 30) {
             // 远距：全瞄躯干
             return target.getLocation().clone().add(0, 0.6, 0);
@@ -119,7 +135,7 @@ public class AimConvergenceManager {
             // 近距+有视线+小概率爆头
             state.headshotAttempts++;
             return target.getEyeLocation().clone().add(
-                    (Math.random() - 0.5) * 0.3,  // 极小偏移
+                    (Math.random() - 0.5) * 0.3,
                     (Math.random() - 0.5) * 0.15,
                     (Math.random() - 0.5) * 0.3
             );

@@ -143,11 +143,14 @@ public class TarkovTactics {
         long burstDuration = s.burstCount * weaponManager.getFireRateMs(uuid);
         long timeSinceBurstEnd = sinceBurstStart - burstDuration;
 
-        if (s.burstCount >= effectiveBurstSize && timeSinceBurstEnd < burstCooldownMs) {
+        // 压制状态下冷却时间减半，更积极开火
+        long effectiveCooldown = s.isSuppressing ? burstCooldownMs / 2 : burstCooldownMs;
+
+        if (s.burstCount >= effectiveBurstSize && timeSinceBurstEnd < effectiveCooldown) {
             return false;
         }
 
-        if (s.burstCount >= effectiveBurstSize && timeSinceBurstEnd >= burstCooldownMs) {
+        if (s.burstCount >= effectiveBurstSize && timeSinceBurstEnd >= effectiveCooldown) {
             s.burstCount = 0;
             s.burstStartTime = 0;
         }

@@ -36,6 +36,8 @@ public class TarkovAIManager {
     public void restart() {
         engine.stop();
         engine.start();
+        // P0-7 修复：重启后扫描已加载实体，恢复 AI 状态，防止幽灵怪
+        engine.recoverMobs();
     }
 
     public void registerMob(LivingEntity entity, String tier) {

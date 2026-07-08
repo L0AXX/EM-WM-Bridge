@@ -20,7 +20,9 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.lang.reflect.Field;
 import java.util.logging.Logger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -168,18 +170,23 @@ class MobWeaponManagerIntegrationTest {
 
     @Test
     @DisplayName("空弹匣射击 → 返回 false")
-    void testEmptyMagazineCannotShoot() {
+    void testEmptyMagazineCannotShoot() throws Exception {
         // 创建一个弹药为0的实例直接放入缓存
         wmApiMock.when(() -> WeaponMechanicsAPI.generateWeapon("AK_47"))
                 .thenReturn(createWeaponItem("AK_47"));
         weaponManager.bindWeapon(mockEntity, "AK_47");
 
-        // 打光弹药
-        int ammo = weaponManager.getCurrentAmmo(mockEntity);
-        for (int i = 0; i < ammo; i++) {
-            weaponManager.shoot(mockEntity,
-                    new org.bukkit.Location(mock(org.bukkit.World.class), 10, 64, 10));
-        }
+        // 通过反射直接设置弹药为0（绕过射击冷却 fireRateMs 限制，
+        // canShoot() 检查 System.currentTimeMillis() - lastShotTime < fireRateMs，
+        // 循环 shoot 太快会全部被冷却拦截）
+        Field cacheField = MobWeaponManager.class.getDeclaredField("weaponCache");
+        cacheField.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Map<UUID, MobWeaponManager.MobWeaponInstance> cache =
+                (Map<UUID, MobWeaponManager.MobWeaponInstance>) cacheField.get(weaponManager);
+        MobWeaponManager.MobWeaponInstance instance = cache.get(mockEntity.getUniqueId());
+        assertNotNull(instance, "绑定后实例应存在");
+        instance.setCurrentAmmo(0);
 
         assertEquals(0, weaponManager.getCurrentAmmo(mockEntity), "弹药应为0");
         assertTrue(weaponManager.isMagazineEmpty(mockEntity), "弹匣应为空");
@@ -227,12 +234,8 @@ class MobWeaponManagerIntegrationTest {
     }
 
     private ItemStack createWeaponItem(String title) {
-        ItemStack item = new ItemStack(Material.IRON_HOE);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            meta.setDisplayName("§c" + title);
-            item.setItemMeta(meta);
-        }
-        return item;
+        // 返回基本 mock — 不在内部使用 when() 以避免嵌套 stubbing 导致 UnfinishedStubbingException
+        // bindWeapon() 内部对 getItemMeta() 返回 null 有 null-check，不影响功能逻辑
+        return mock(ItemStack.class);
     }
 }

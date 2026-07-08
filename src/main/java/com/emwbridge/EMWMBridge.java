@@ -128,6 +128,11 @@ public class EMWMBridge extends JavaPlugin {
         // 注册热重监听器（命令监听）
         pm.registerEvents(new EMCommandListener(this), this);
 
+        // EMWMReloadListener 不再通过 pm.registerEvents 注册
+        // EliteMobs 没有官方 ReloadEvent，@EventHandler(Object) 签名非法
+        // reloadEMWMConfig() 方法仍可通过 /emwm reload 手动调用
+        reloadListener = new EMWMReloadListener(this);
+
         new PlayerShootListener(this, tarkovAIManager.getEngine().getSoundEventManager()).register();
     }
 
@@ -187,6 +192,22 @@ public class EMWMBridge extends JavaPlugin {
                 handleInfoCommand(sender, args);
                 return true;
 
+            case "test":
+                if (!sender.hasPermission("emwm.admin")) {
+                    sender.sendMessage("§c你没有权限执行此命令");
+                    return true;
+                }
+                sender.sendMessage("§e[EM-WM-Bridge] §f正在执行黑盒测试，结果输出到控制台...");
+                String json = new com.emwbridge.test.PluginTestRunner(this).run();
+                // 解析 JSON 中的 passed/failed 发给玩家
+                int passedCount = json.contains("\"passed\":") 
+                    ? Integer.parseInt(json.replaceAll(".*\"passed\":(\\d+).*", "$1")) : -1;
+                int failedCount = json.contains("\"failed\":")
+                    ? Integer.parseInt(json.replaceAll(".*\"failed\":(\\d+).*", "$1")) : -1;
+                String color = failedCount > 0 ? "§c" : "§a";
+                sender.sendMessage(color + "[EM-WM-Bridge] 测试完成: §a通过 " + passedCount + color + " | 失败 " + failedCount + " §7(详见控制台)");
+                return true;
+
             default:
                 sendHelp(sender);
                 return true;
@@ -203,6 +224,7 @@ public class EMWMBridge extends JavaPlugin {
         sender.sendMessage("§f/emwm version §7- 显示版本信息");
         sender.sendMessage("§f/emwm track §7- 跟踪你正在看的实体");
         sender.sendMessage("§f/emwm info [怪物ID] §7- 查看怪物EMWM配置缓存");
+        sender.sendMessage("§f/emwm test §7- 执行黑盒测试（输出JSON）");
     }
 
     private void handleDebugCommand(CommandSender sender, String[] args) {
