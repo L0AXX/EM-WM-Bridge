@@ -126,7 +126,17 @@
 - 全套 403 测试 0 失败，覆盖率 33.0%（门禁✅）
 - 注：AI-vs-AI 的详细 LOS/掩体/投掷战术为后续增强项（M2 收尾）
 
-### ⏳ 需求 2 / 3 / 4 / 6 / 7 / 8 — 按 M2–M5 推进
+### ✅ 需求 4（永不撤退 + 性格预设）— 已完成
+- `EMWMWeaponConfig` 新增 `neverRetreat` + `personalityPreset` 字段；`EMWMConfigCache` 解析（`tactics.neverRetreat` / `personalityPreset`）+ 合并
+- `PersonalityManager`：per-entity `neverRetreat`/`retreatHpThreshold` 覆盖 + `personality.presets.<name>` 解析（`reload`）
+- `decide()`：`neverRetreat=true` 永不进入 RETREAT；撤退阈值 = per-entity 覆盖 ?? 历史 0.15 兜底（**零回归**：未配置撤退阈值的服务器行为不变）
+- 接线：沿用 `emwm_faction` 元数据模式，监听器写入 `emwm_never_retreat`/`emwm_retreat_hp`/`emwm_personality_preset`，引擎 `registerMob` 读取并注入
+- `config.yml` 增加 `personality.presets` 示例（fanatic/guardians/ambusher/cowardly）
+- 玩家交战路径（`executeTacticalAction`）保持 100% 不变
+- 验收单测：`PersonalityManagerTest`（7 项：neverRetreat 不撤退、阈值覆盖、0.15 零回归、预设解析/强制、无效名安全忽略、removeEntity 清理）+ `EMWMWeaponConfigTest`（5 项合并/默认值）
+- 全套 415 测试 0 失败，覆盖率门禁✅
+
+### ⏳ 需求 2 / 3 / 6 / 7 / 8 — 按 M3–M5 推进
 
 ---
 

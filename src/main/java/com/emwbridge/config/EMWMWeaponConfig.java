@@ -112,6 +112,10 @@ public class EMWMWeaponConfig {
     private Boolean consumeAmmo;             // 是否消耗弹药供给：AI 开火是否递减 emwm_ammo；null=true(默认有限,向后兼容)，GreyZone 模板设 false=无限
     private String faction;                  // GreyZone 阵营ID（emwm_factions.yml 的 key），null=使用内置 Tarkov 枚举回退
 
+    // ==================== 扩展：性格与撤退控制（GreyZone 需求4）====================
+    private Boolean neverRetreat;            // 永不撤退：true=即使血量见底也绝不 RETREAT（狂信徒/死守单位）；null=false
+    private String personalityPreset;        // 性格预设名（对应 config.yml personality.presets.<name>），null=按 tier 随机 roll
+
     // ==================== 武器池随机选择 ====================
 
     /**
@@ -381,6 +385,10 @@ public class EMWMWeaponConfig {
         if (meleeSwitchHealthPercent == null) meleeSwitchHealthPercent = template.meleeSwitchHealthPercent;
         if (consumeAmmo == null) consumeAmmo = template.consumeAmmo;
         if (faction == null) faction = template.faction;
+
+        // 扩展性格与撤退控制（GreyZone 需求4）
+        if (neverRetreat == null) neverRetreat = template.neverRetreat;
+        if (personalityPreset == null) personalityPreset = template.personalityPreset;
     }
 
     // ==================== Getter/Setter ====================
@@ -604,6 +612,13 @@ public class EMWMWeaponConfig {
 
     public String getFaction() { return faction; }
     public void setFaction(String faction) { this.faction = faction; explicitlySetFields.add("faction"); }
+
+    public Boolean getNeverRetreat() { return neverRetreat; }
+    public boolean isNeverRetreatOrDefault() { return neverRetreat != null ? neverRetreat : false; }
+    public void setNeverRetreat(Boolean neverRetreat) { this.neverRetreat = neverRetreat; explicitlySetFields.add("neverRetreat"); }
+
+    public String getPersonalityPreset() { return personalityPreset; }
+    public void setPersonalityPreset(String personalityPreset) { this.personalityPreset = personalityPreset; explicitlySetFields.add("personalityPreset"); }
 
     /**
      * 计算射击间隔（tick）

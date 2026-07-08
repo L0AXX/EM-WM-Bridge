@@ -732,7 +732,21 @@ public class TarkovAIEngine {
             }
         }
         var personality = personalityManager.rollByTier(tier);
-        personalityManager.assignPersonality(uuid, personality);
+        // 需求4.2：若模板强制指定性格预设（emwm_personality_preset），则覆盖 tier 随机 roll
+        List<org.bukkit.metadata.MetadataValue> presetMeta = entity.getMetadata("emwm_personality_preset");
+        if (!presetMeta.isEmpty()) {
+            com.emwbridge.ai.personality.PersonalityType preset =
+                    personalityManager.resolvePreset(presetMeta.get(0).asString());
+            if (preset != null) personality = preset;
+        }
+        // 需求4.1：读取 per-entity 撤退覆盖（来自 EMWMWeaponConfig 经 emwm_* 元数据注入）
+        boolean neverRetreat = false;
+        List<org.bukkit.metadata.MetadataValue> nrMeta = entity.getMetadata("emwm_never_retreat");
+        if (!nrMeta.isEmpty()) neverRetreat = nrMeta.get(0).asBoolean();
+        Double retreatHp = null;
+        List<org.bukkit.metadata.MetadataValue> rhMeta = entity.getMetadata("emwm_retreat_hp");
+        if (!rhMeta.isEmpty()) retreatHp = rhMeta.get(0).asDouble();
+        personalityManager.assignPersonality(uuid, personality, neverRetreat, retreatHp);
         squadManager.tryJoin(entity, tier, personality);
         aimConvergenceManager.registerMob(uuid);
         aimConvergenceManager.setInitialDelayTicks(uuid, aimConvergenceManager.getInitialDelay(tier));

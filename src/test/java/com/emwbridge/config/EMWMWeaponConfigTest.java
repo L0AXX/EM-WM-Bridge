@@ -119,4 +119,49 @@ class EMWMWeaponConfigTest {
         individual.mergeWithTemplate(template);
         assertFalse(individual.isConsumeAmmoOrDefault(), "个体未设置时继承模板的 false");
     }
+
+    // ==================== 需求4：neverRetreat + personalityPreset ====================
+
+    @Test
+    @DisplayName("neverRetreat 默认 false(可撤退,向后兼容)")
+    void neverRetreatDefaultsToFalse() {
+        EMWMWeaponConfig c = new EMWMWeaponConfig();
+        assertFalse(c.isNeverRetreatOrDefault(), "未设置时默认 false(允许撤退)");
+        assertNull(c.getNeverRetreat(), "原始值应为 null");
+    }
+
+    @Test
+    @DisplayName("neverRetreat=true → isNeverRetreatOrDefault 为 true(死守不退)")
+    void neverRetreatTrueOverridesDefault() {
+        EMWMWeaponConfig c = new EMWMWeaponConfig();
+        c.setNeverRetreat(true);
+        assertTrue(c.isNeverRetreatOrDefault(), "显式 true → 永不撤退");
+    }
+
+    @Test
+    @DisplayName("合并时 neverRetreat 从模板继承(null 字段)")
+    void neverRetreatInheritsFromTemplate() {
+        EMWMWeaponConfig template = new EMWMWeaponConfig();
+        template.setNeverRetreat(true);
+        EMWMWeaponConfig individual = new EMWMWeaponConfig();
+        individual.mergeWithTemplate(template);
+        assertTrue(individual.isNeverRetreatOrDefault(), "个体未设置时继承模板的 true");
+    }
+
+    @Test
+    @DisplayName("personalityPreset 默认 null(按 tier 随机 roll)")
+    void personalityPresetDefaultsToNull() {
+        EMWMWeaponConfig c = new EMWMWeaponConfig();
+        assertNull(c.getPersonalityPreset(), "未设置时默认 null");
+    }
+
+    @Test
+    @DisplayName("合并时 personalityPreset 从模板继承(null 字段)")
+    void personalityPresetInheritsFromTemplate() {
+        EMWMWeaponConfig template = new EMWMWeaponConfig();
+        template.setPersonalityPreset("fanatic");
+        EMWMWeaponConfig individual = new EMWMWeaponConfig();
+        individual.mergeWithTemplate(template);
+        assertEquals("fanatic", individual.getPersonalityPreset(), "个体未设置时继承模板的预设名");
+    }
 }

@@ -232,6 +232,14 @@ personality:
       FLANKER: 0
       LOOTER: 0
 
+  # 需求4.2：命名性格预设。模板可通过 personalityPreset: <name> 强制指定性格，绕过 tier 随机 roll。
+  # 值为 PersonalityType 枚举名（COWARD/RECKLESS/CAUTIOUS/AMBUSH/LOOTER/CAPTAIN/FLANKER/SUPPRESSOR）。
+  presets:
+    fanatic: RECKLESS      # 狂信徒：死战不退（配合模板 neverRetreat: true）
+    guardians: CAPTAIN     # 据点守卫：稳健指挥
+    ambusher: AMBUSH       # 伏击手：偏好掩体偷袭
+    cowardly: COWARD       # 怂包：血量一低就撤
+
 # ==================== 瞄准系统 ====================
 aim:
   # 反应时间后瞄准启动延迟 (秒) — 每个tier看到目标后的反应时间

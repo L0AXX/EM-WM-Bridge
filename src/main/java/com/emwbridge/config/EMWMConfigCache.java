@@ -206,6 +206,12 @@ public class EMWMConfigCache {
         if (section.contains("faction")) {
             config.setFaction(section.getString("faction"));
         }
+        // 需求4：性格预设（强制指定性格，绕过 tier 随机 roll）
+        if (section.contains("personalityPreset")) {
+            config.setPersonalityPreset(section.getString("personalityPreset"));
+        } else if (section.contains("personality-preset")) {
+            config.setPersonalityPreset(section.getString("personality-preset"));
+        }
 
         // 投掷物AI参数
         if (section.contains("enableGrenadeAI")) {
@@ -483,6 +489,12 @@ public class EMWMConfigCache {
             } else if (tacticsSection.contains("retreat-hp-threshold")) {
                 config.setRetreatHpThreshold(tacticsSection.getDouble("retreat-hp-threshold"));
             }
+            // 需求4：永不撤退开关（GreyZone 狂信徒/死守单位）
+            if (tacticsSection.contains("neverRetreat")) {
+                config.setNeverRetreat(tacticsSection.getBoolean("neverRetreat"));
+            } else if (tacticsSection.contains("never-retreat")) {
+                config.setNeverRetreat(tacticsSection.getBoolean("never-retreat"));
+            }
             if (tacticsSection.contains("meleeSwitchHealthPercent")) {
                 config.setMeleeSwitchHealthPercent(tacticsSection.getDouble("meleeSwitchHealthPercent"));
             } else if (tacticsSection.contains("melee-switch-hp-percent")) {
@@ -743,6 +755,8 @@ public class EMWMConfigCache {
                 if (config.getMeleeSwitchHealthPercent() != null) merged.setMeleeSwitchHealthPercent(config.getMeleeSwitchHealthPercent());
                 if (config.getConsumeAmmo() != null) merged.setConsumeAmmo(config.getConsumeAmmo());
                 if (config.getFaction() != null) merged.setFaction(config.getFaction());
+                if (config.getNeverRetreat() != null) merged.setNeverRetreat(config.getNeverRetreat());
+                if (config.getPersonalityPreset() != null) merged.setPersonalityPreset(config.getPersonalityPreset());
 
                 // 用模板填充null字段
                 merged.mergeWithTemplate(templateConfig);

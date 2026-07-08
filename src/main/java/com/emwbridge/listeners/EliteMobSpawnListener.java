@@ -198,6 +198,18 @@ public class EliteMobSpawnListener implements Listener {
             entity.setMetadata("emwm_faction", new FixedMetadataValue(plugin, config.getFaction()));
         }
 
+        // 需求4：性格与撤退控制标签（供 TarkovAIEngine.registerMob 注入 PersonalityManager）。
+        // null 时不写入，引擎回退到 tier 随机 roll + 历史 0.15 撤退兜底（零破坏）。
+        if (config.getPersonalityPreset() != null) {
+            entity.setMetadata("emwm_personality_preset", new FixedMetadataValue(plugin, config.getPersonalityPreset()));
+        }
+        if (config.getNeverRetreat() != null) {
+            entity.setMetadata("emwm_never_retreat", new FixedMetadataValue(plugin, config.getNeverRetreat()));
+        }
+        if (config.getRetreatHpThreshold() != null) {
+            entity.setMetadata("emwm_retreat_hp", new FixedMetadataValue(plugin, config.getRetreatHpThreshold()));
+        }
+
         // 存储配置参数供AI使用
         entity.setMetadata("emwm_fire_rate_ticks", new FixedMetadataValue(plugin, config.getFireRateTicks()));
         entity.setMetadata("emwm_max_range", new FixedMetadataValue(plugin, config.getMaxRange()));
