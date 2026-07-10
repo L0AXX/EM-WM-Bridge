@@ -852,9 +852,9 @@ public class TarkovAIEngine {
             state.behavior = AiBehavior.GUARD;
             state.homeLocation = entity.getLocation().clone();
             List<org.bukkit.metadata.MetadataValue> leashMeta = entity.getMetadata("emwm_leash_distance");
-            state.leashDistance = leashMeta.isEmpty() ? 45.0 : leashMeta.get(0).asDouble();
+            state.leashDistance = leashMeta.isEmpty() ? 45.0 : leashMeta.get(0).asDouble();   // 默认45为临时值，测试服校准
             List<org.bukkit.metadata.MetadataValue> aggroMeta = entity.getMetadata("emwm_aggro_radius");
-            state.aggroRadius = aggroMeta.isEmpty() ? 35.0 : aggroMeta.get(0).asDouble();
+            state.aggroRadius = aggroMeta.isEmpty() ? 35.0 : aggroMeta.get(0).asDouble();     // 默认35为临时值，测试服校准
         }
 
         // 需求2.4：读取编制名（emwm_squad）走命名编队，否则按距离自动编队
@@ -944,6 +944,7 @@ public class TarkovAIEngine {
         // 需求3：据点守卫行为状态
         public AiBehavior behavior = AiBehavior.FREE;
         public Location homeLocation;
+        // 临时默认值，需测试服反算校准（2026-07-10：禁止以空占位发布，非零临时值待校准）
         public double leashDistance = 45.0;
         public double aggroRadius = 35.0;
 
