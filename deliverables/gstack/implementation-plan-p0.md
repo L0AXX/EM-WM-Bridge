@@ -151,8 +151,16 @@
 - 接线：监听器写 `emwm_behavior`/`emwm_aggro_radius`/`emwm_leash_distance`，引擎 `registerMob` 捕获 home 与半径
 - 单测：`EMWMWeaponConfigTest`（3 项默认/继承）+ `EMWMConfigCacheTest`（2 项 guard 子块/顶层解析）
 
-### ⏳ 需求 6 / 7 / 8 — 按 M4–M5 推进
-- 需求6（死亡掉货币弹，M4）注意：greyzone_ammos.yml 缺 gun→ammo 映射，需独立映射段
+### ✅ 需求 6（死亡掉货币弹）— 已完成 2026-07-10
+- 新增 `LootManager`（com.emwbridge.loot）：reload 载入 `greyzone_ammos.yml`（ammos 物品定义 + gun-ammo-map 映射）；`resolveAmmoType` = 模板 lootAmmoType ?? gun→ammo 映射；`buildAmmoItem` 白名单校验 + 区间随机 + 硬上限64 防通胀（computeLootAmount 纯逻辑可单测）
+- 新增 `greyzone_ammos.yml`（7 种货币弹定义 + gun→ammo 映射），材质/显示名需测试服替换为真实货币物品（已在文件头注释）
+- `EMWMWeaponConfig` 新增 lootAmmoType/lootAmmoMin/lootAmmoMax（默认 [8,24] = 规格 §3，待校准）；`EMWMConfigCache` 解析 `loot` 子块（模板路径 parseTemplateSection）+ 合并
+- `EMWMBridge` 装配 LootManager（onEnable + reloadAll）
+- `EliteMobSpawnListener`：bind 时解析掉落参数写 `emwm_loot_ammo_*` 元数据；onEntityDeath 读取并经 `event.getDrops().add()` 注入货币弹（仅 EMWM 控制怪、玩家交战路径不受影响）；lootManager null 守卫
+- 单测：LootManagerTest（9：白名单/硬上限/min钳制/区间随机/resolve 优先级）+ EMWMWeaponConfigTest（2：默认/继承）+ EMWMConfigCacheTest（1：loot 子块解析）
+- 全套 438 测试 0 失败，覆盖率门禁✅
+
+### ⏳ 需求 7 / 8 — 按 M5 推进
 - 需求7（护甲混用 ArmorMechanics，M5 P1）、需求8（Boss 协同召唤，M5 P2）
 
 ---

@@ -217,6 +217,17 @@ public class EMWMConfigCache {
         if (section.contains("squad")) {
             config.setSquad(section.getString("squad"));
         }
+
+        // 需求6：死亡掉落货币弹（loot 子块）
+        if (section.contains("loot")) {
+            ConfigurationSection loot = section.getConfigurationSection("loot");
+            if (loot != null) {
+                if (loot.contains("ammoType")) config.setLootAmmoType(loot.getString("ammoType"));
+                else if (loot.contains("ammo-type")) config.setLootAmmoType(loot.getString("ammo-type"));
+                if (loot.contains("min")) config.setLootAmmoMin(loot.getInt("min"));
+                if (loot.contains("max")) config.setLootAmmoMax(loot.getInt("max"));
+            }
+        }
         // 需求3：据点守卫行为参数（behavior 可置于顶层或 guard 子块）
         if (section.contains("behavior")) {
             config.setBehavior(section.getString("behavior"));
@@ -780,6 +791,9 @@ public class EMWMConfigCache {
                 if (config.getGuardRadius() != null) merged.setGuardRadius(config.getGuardRadius());
                 if (config.getAggroRadius() != null) merged.setAggroRadius(config.getAggroRadius());
                 if (config.getLeashDistance() != null) merged.setLeashDistance(config.getLeashDistance());
+                if (config.getLootAmmoType() != null) merged.setLootAmmoType(config.getLootAmmoType());
+                if (config.getLootAmmoMin() != null) merged.setLootAmmoMin(config.getLootAmmoMin());
+                if (config.getLootAmmoMax() != null) merged.setLootAmmoMax(config.getLootAmmoMax());
 
                 // 用模板填充null字段
                 merged.mergeWithTemplate(templateConfig);

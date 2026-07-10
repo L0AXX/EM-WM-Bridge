@@ -3,6 +3,7 @@ package com.emwbridge.config;
 import com.emwbridge.EMWMBridge;
 import org.bukkit.Server;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -148,6 +149,20 @@ class EMWMConfigCacheTest {
             assertEquals(12.0, result.getGuardRadius(), 0.001);
             assertEquals(30.0, result.getAggroRadius(), 0.001);
             assertEquals(50.0, result.getLeashDistance(), 0.001);
+        }
+
+        @Test
+        @DisplayName("需求6：loot 子块解析 ammoType/min/max（模板路径 parseTemplateSection）")
+        void lootBlockParsed() throws Exception {
+            YamlConfiguration section = new YamlConfiguration();
+            section.set("loot.ammoType", "greyzone_rifle_improv");
+            section.set("loot.min", 5);
+            section.set("loot.max", 10);
+
+            EMWMWeaponConfig result = parse(section);
+            assertEquals("greyzone_rifle_improv", result.getLootAmmoType());
+            assertEquals(5, result.getLootAmmoMin());
+            assertEquals(10, result.getLootAmmoMax());
         }
 
         @Test

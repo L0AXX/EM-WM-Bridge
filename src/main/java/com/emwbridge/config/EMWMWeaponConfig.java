@@ -123,6 +123,11 @@ public class EMWMWeaponConfig {
     private Double aggroRadius;              // 仇恨半径：敌入此范围即猎杀，null=35
     private Double leashDistance;            // 拴绳距离：超出则回防 home，null=45
 
+    // ==================== 扩展：死亡掉落货币弹（GreyZone 需求6）====================
+    private String lootAmmoType;            // 掉落的货币弹类型（对应 greyzone_ammos.yml ammos.<key>）；null=不掉落（或经 gun→ammo 映射回退）
+    private Integer lootAmmoMin;            // 掉落数量下限，null=8（U5 规格 §3 默认值，需测试服校准）
+    private Integer lootAmmoMax;            // 掉落数量上限，null=24（U5 规格 §3 默认值，需测试服校准）
+
     // ==================== 武器池随机选择 ====================
 
     /**
@@ -403,6 +408,11 @@ public class EMWMWeaponConfig {
         if (guardRadius == null) guardRadius = template.guardRadius;
         if (aggroRadius == null) aggroRadius = template.aggroRadius;
         if (leashDistance == null) leashDistance = template.leashDistance;
+
+        // 扩展死亡掉落（GreyZone 需求6）
+        if (lootAmmoType == null) lootAmmoType = template.lootAmmoType;
+        if (lootAmmoMin == null) lootAmmoMin = template.lootAmmoMin;
+        if (lootAmmoMax == null) lootAmmoMax = template.lootAmmoMax;
     }
 
     // ==================== Getter/Setter ====================
@@ -640,6 +650,18 @@ public class EMWMWeaponConfig {
 
     public String getBehavior() { return behavior; }
     public void setBehavior(String behavior) { this.behavior = behavior; explicitlySetFields.add("behavior"); }
+
+    // ==================== 需求6：死亡掉落货币弹 ====================
+    public String getLootAmmoType() { return lootAmmoType; }
+    public void setLootAmmoType(String lootAmmoType) { this.lootAmmoType = lootAmmoType; explicitlySetFields.add("lootAmmoType"); }
+    public Integer getLootAmmoMin() { return lootAmmoMin; }
+    public void setLootAmmoMin(Integer lootAmmoMin) { this.lootAmmoMin = lootAmmoMin; explicitlySetFields.add("lootAmmoMin"); }
+    public Integer getLootAmmoMax() { return lootAmmoMax; }
+    public void setLootAmmoMax(Integer lootAmmoMax) { this.lootAmmoMax = lootAmmoMax; explicitlySetFields.add("lootAmmoMax"); }
+    /** 掉落数量下限默认值（U5 规格 §3 = 8，需测试服校准回填） */
+    public int getLootAmmoMinOrDefault() { return lootAmmoMin != null ? lootAmmoMin : 8; }
+    /** 掉落数量上限默认值（U5 规格 §3 = 24，需测试服校准回填） */
+    public int getLootAmmoMaxOrDefault() { return lootAmmoMax != null ? lootAmmoMax : 24; }
 
     public Double getGuardRadius() { return guardRadius; }
     public double getGuardRadiusOrDefault() { return guardRadius != null ? guardRadius : 12.0; }

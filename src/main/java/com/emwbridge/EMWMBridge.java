@@ -6,6 +6,7 @@ import com.emwbridge.listeners.EliteMobSpawnListener;
 import com.emwbridge.listeners.EMCommandListener;
 import com.emwbridge.listeners.EMWMReloadListener;
 import com.emwbridge.listeners.PlayerShootListener;
+import com.emwbridge.loot.LootManager;
 import com.emwbridge.managers.ConfigManager;
 import com.emwbridge.managers.ExtremeEventManager;
 import com.emwbridge.managers.FeatureManager;
@@ -39,6 +40,7 @@ public class EMWMBridge extends JavaPlugin {
     private FeatureManager featureManager;
     private EMWMConfigCache emwmConfigCache;
     private EMWMReloadListener reloadListener;
+    private LootManager lootManager;
     private boolean isFolia;
 
     @Override
@@ -75,11 +77,13 @@ public class EMWMBridge extends JavaPlugin {
         mobWeaponManager = new MobWeaponManager(this);
         extremeEventManager = new ExtremeEventManager(this);
         tarkovAIManager = new TarkovAIManager(this);
+        lootManager = new LootManager(this);
 
         // 加载配置
         mobWeaponManager.reload();
         extremeEventManager.reload();
         tarkovAIManager.start();
+        lootManager.reload();
 
         registerListeners();
 
@@ -388,6 +392,9 @@ public class EMWMBridge extends JavaPlugin {
         if (emwmConfigCache != null) {
             emwmConfigCache.reload();
         }
+        if (lootManager != null) {
+            lootManager.reload();
+        }
     }
 
     public static EMWMBridge getInstance() {
@@ -404,6 +411,10 @@ public class EMWMBridge extends JavaPlugin {
 
     public ExtremeEventManager getExtremeEventManager() {
         return extremeEventManager;
+    }
+
+    public LootManager getLootManager() {
+        return lootManager;
     }
 
     public DebugManager getDebugManager() {

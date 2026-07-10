@@ -4,6 +4,7 @@ import com.emwbridge.EMWMBridge;
 import com.emwbridge.config.EMWMConfigCache;
 import com.emwbridge.config.EMWMWeaponConfig;
 import com.emwbridge.events.EMWMKillEvent;
+import com.emwbridge.loot.LootManager;
 import com.emwbridge.managers.MobWeaponManager;
 import com.emwbridge.managers.TarkovAIManager;
 import org.bukkit.Bukkit;
@@ -222,6 +223,19 @@ public class EliteMobSpawnListener implements Listener {
             entity.setMetadata("emwm_leash_distance", new FixedMetadataValue(plugin, config.getLeashDistanceOrDefault()));
         }
 
+        // 需求6：死亡掉落货币弹参数（供 onEntityDeath 构建掉落物）
+        // 解析最终弹药类型：模板 lootAmmoType 优先，否则回退 gun→ammo 映射；两者皆空则不掉落
+        // 守卫：lootManager 可能为 null（mock/部分初始化），则跳过掉落，不阻断绑定流程
+        LootManager lootManager = plugin.getLootManager();
+        if (lootManager != null) {
+            String lootAmmoType = lootManager.resolveAmmoType(config, weapon);
+            if (lootAmmoType != null) {
+                entity.setMetadata("emwm_loot_ammo_type", new FixedMetadataValue(plugin, lootAmmoType));
+                entity.setMetadata("emwm_loot_ammo_min", new FixedMetadataValue(plugin, config.getLootAmmoMinOrDefault()));
+                entity.setMetadata("emwm_loot_ammo_max", new FixedMetadataValue(plugin, config.getLootAmmoMaxOrDefault()));
+            }
+        }
+
         // 存储配置参数供AI使用
         entity.setMetadata("emwm_fire_rate_ticks", new FixedMetadataValue(plugin, config.getFireRateTicks()));
         entity.setMetadata("emwm_max_range", new FixedMetadataValue(plugin, config.getMaxRange()));
@@ -314,6 +328,18 @@ public class EliteMobSpawnListener implements Listener {
             // 触发 EMWMKillEvent 供 Chemdah 等插件监听
             fireKillEvent(entity, event);
 
+            // 需求6：死亡掉落货币弹（桥接层拦截死亡，注入货币弹 ItemStack，U4）
+            String lootType = getMetaString(entity, "emwm_loot_ammo_type");
+            if (lootType != null) {
+                int lootMin = getMetaInt(entity, "emwm_loot_ammo_min", LootManager.DEFAULT_MIN);
+                int lootMax = getMetaInt(entity, "emwm_loot_ammo_max", LootManager.DEFAULT_MAX);
+                ItemStack drop = plugin.getLootManager().buildAmmoItem(lootType, lootMin, lootMax);
+                if (drop != null) {
+                    event.getDrops().add(drop);
+                    plugin.debug("[EMWM] 死亡掉落货币弹: " + lootType + " x" + drop.getAmount());
+                }
+            }
+
             weaponManager.unbindWeapon(entity);
             plugin.debug("精英怪死亡，解绑武器: " + entity.getType());
             // 注销AI引擎
@@ -373,6 +399,14 @@ public class EliteMobSpawnListener implements Listener {
                 .findFirst()
                 .map(v -> v.asString())
                 .orElse(null);
+    }
+
+    private int getMetaInt(LivingEntity entity, String key, int fallback) {
+        if (!entity.hasMetadata(key)) return fallback;
+        return entity.getMetadata(key).stream()
+                .findFirst()
+                .map(v -> v.asInt())
+                .orElse(fallback);
     }
 
     private String detectTarkovMobTier(LivingEntity entity) {

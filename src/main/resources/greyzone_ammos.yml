@@ -1,0 +1,70 @@
+# GreyZone 货币弹定义 + gun→ammo 映射
+#
+# 用途（实施计划 U4 / 需求6）：
+#   桥接层在 EMWM 控制的怪物死亡时，按本文件构建「货币弹」ItemStack 注入掉落物，
+#   实现 GreyZone 经济闭环。掉落的是这里的物品，而非 WeaponMechanics 原生弹药。
+#
+# 重要（服务器侧必读）：
+#   - ammos.<type>.material / display-name / lore 必须与 GreyZone 经济插件认可的「货币物品」完全一致，
+#     否则玩家捡到也无法作为货币使用。上线前请替换为真实货币物品定义。
+#   - 非 GreyZone 服务器：删除本文件即可完全关闭死亡掉落（LootManager 加载失败=不掉落）。
+#   - lootAmmoMin/Max 默认值 [8,24] 取自规格 §3，需测试服实机校准回填。
+
+# ============ 货币弹物品定义（即 GreyZone 的 7 种货币）============
+ammos:
+  greyzone_rifle_improv:
+    material: ARROW
+    display-name: "§a改装步枪弹"
+    lore:
+      - "§7GreyZone 通用货币 · 步枪弹药"
+  greyzone_pistol_ammo:
+    material: ARROW
+    display-name: "§6手枪弹"
+    lore:
+      - "§7GreyZone 货币 · 手枪弹药"
+  greyzone_shell:
+    material: ARROW
+    display-name: "§c霰弹"
+    lore:
+      - "§7GreyZone 货币 · 霰弹"
+  greyzone_sniper_ammo:
+    material: ARROW
+    display-name: "§b狙击弹"
+    lore:
+      - "§7GreyZone 货币 · 狙击弹药"
+  greyzone_smg_ammo:
+    material: ARROW
+    display-name: "§e冲锋枪弹"
+    lore:
+      - "§7GreyZone 货币 · 冲锋枪弹药"
+  greyzone_556:
+    material: ARROW
+    display-name: "§25.56 弹"
+    lore:
+      - "§7GreyZone 货币 · 5.56 弹药"
+  greyzone_762:
+    material: ARROW
+    display-name: "§4 7.62 弹"
+    lore:
+      - "§7GreyZone 货币 · 7.62 弹药"
+
+# ============ gun → ammo 映射（lootAmmoType 缺省时回退）============
+# 键为 WM 武器 title（与 emwm_weapon 元数据一致），值为上方程 ammos.<type>
+gun-ammo-map:
+  AK_47: greyzone_rifle_improv
+  AK_74: greyzone_556
+  M4: greyzone_556
+  M4A1: greyzone_556
+  AK_47M: greyzone_762
+  AK_103: greyzone_762
+  M4_SOPMOD: greyzone_556
+  PISTOL: greyzone_pistol_ammo
+  GLOCK: greyzone_pistol_ammo
+  M9: greyzone_pistol_ammo
+  SHOTGUN: greyzone_shell
+  MP_153: greyzone_shell
+  MOSIN: greyzone_sniper_ammo
+  SV_98: greyzone_sniper_ammo
+  VECTOR: greyzone_smg_ammo
+  MP5: greyzone_smg_ammo
+  PPSH: greyzone_smg_ammo

@@ -200,4 +200,28 @@ class EMWMWeaponConfigTest {
         assertEquals(30.0, individual.getAggroRadiusOrDefault(), 0.001, "继承 aggro 半径");
         assertEquals(50.0, individual.getLeashDistanceOrDefault(), 0.001, "继承 leash 距离");
     }
+
+    @Test
+    @DisplayName("合并时 lootAmmo 字段从模板继承(null 字段)")
+    void lootAmmoInheritsFromTemplate() {
+        EMWMWeaponConfig template = new EMWMWeaponConfig();
+        template.setLootAmmoType("greyzone_rifle_improv");
+        template.setLootAmmoMin(5);
+        template.setLootAmmoMax(12);
+
+        EMWMWeaponConfig individual = new EMWMWeaponConfig();
+        individual.mergeWithTemplate(template);
+
+        assertEquals("greyzone_rifle_improv", individual.getLootAmmoType(), "继承掉落类型");
+        assertEquals(5, individual.getLootAmmoMin());
+        assertEquals(12, individual.getLootAmmoMax());
+    }
+
+    @Test
+    @DisplayName("lootAmmoMin/Max 默认值 = 规格 §3 [8,24]（待测试服校准）")
+    void lootAmmoDefaults() {
+        EMWMWeaponConfig config = new EMWMWeaponConfig();
+        assertEquals(8, config.getLootAmmoMinOrDefault(), "默认下限 8");
+        assertEquals(24, config.getLootAmmoMaxOrDefault(), "默认上限 24");
+    }
 }
