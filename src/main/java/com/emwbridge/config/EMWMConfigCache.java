@@ -228,6 +228,19 @@ public class EMWMConfigCache {
                 if (loot.contains("max")) config.setLootAmmoMax(loot.getInt("max"));
             }
         }
+
+        // 需求7：护甲混用（gear 块）；实际减伤依赖 AM 对非玩家实体支持（7.4 验证门待测试服确认）
+        if (section.contains("gear")) {
+            ConfigurationSection gear = section.getConfigurationSection("gear");
+            if (gear != null) {
+                if (gear.contains("helmet")) config.setGearHelmet(gear.getString("helmet"));
+                if (gear.contains("chestplate")) config.setGearChestplate(gear.getString("chestplate"));
+                if (gear.contains("leggings")) config.setGearLeggings(gear.getString("leggings"));
+                if (gear.contains("boots")) config.setGearBoots(gear.getString("boots"));
+                if (gear.contains("dropGear")) config.setGearDropGear(gear.getBoolean("dropGear"));
+                if (gear.contains("maxHealthBoost")) config.setGearMaxHealthBoost(gear.getInt("maxHealthBoost"));
+            }
+        }
         // 需求3：据点守卫行为参数（behavior 可置于顶层或 guard 子块）
         if (section.contains("behavior")) {
             config.setBehavior(section.getString("behavior"));
@@ -794,6 +807,12 @@ public class EMWMConfigCache {
                 if (config.getLootAmmoType() != null) merged.setLootAmmoType(config.getLootAmmoType());
                 if (config.getLootAmmoMin() != null) merged.setLootAmmoMin(config.getLootAmmoMin());
                 if (config.getLootAmmoMax() != null) merged.setLootAmmoMax(config.getLootAmmoMax());
+                if (config.getGearHelmet() != null) merged.setGearHelmet(config.getGearHelmet());
+                if (config.getGearChestplate() != null) merged.setGearChestplate(config.getGearChestplate());
+                if (config.getGearLeggings() != null) merged.setGearLeggings(config.getGearLeggings());
+                if (config.getGearBoots() != null) merged.setGearBoots(config.getGearBoots());
+                if (config.getGearDropGear() != null) merged.setGearDropGear(config.getGearDropGear());
+                if (config.getGearMaxHealthBoost() != null) merged.setGearMaxHealthBoost(config.getGearMaxHealthBoost());
 
                 // 用模板填充null字段
                 merged.mergeWithTemplate(templateConfig);

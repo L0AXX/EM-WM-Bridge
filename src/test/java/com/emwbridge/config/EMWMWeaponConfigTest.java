@@ -224,4 +224,54 @@ class EMWMWeaponConfigTest {
         assertEquals(8, config.getLootAmmoMinOrDefault(), "默认下限 8");
         assertEquals(24, config.getLootAmmoMaxOrDefault(), "默认上限 24");
     }
+
+    // ==================== 需求7：护甲混用（ArmorMechanics）默认与继承 ====================
+
+    @Test
+    @DisplayName("gear 默认值：dropGear=true(掉落) / maxHealthBoost=0(信赖 AM)")
+    void gearDefaults() {
+        EMWMWeaponConfig config = new EMWMWeaponConfig();
+        assertTrue(config.getGearDropGearOrDefault(), "默认掉落护甲");
+        assertNull(config.getGearDropGear(), "原始值应为 null");
+        assertEquals(0, config.getGearMaxHealthBoostOrDefault(), "默认 0（信赖 AM，待 7.4 验证门）");
+        assertNull(config.getGearMaxHealthBoost(), "原始值应为 null");
+    }
+
+    @Test
+    @DisplayName("合并时 gear 字段从模板继承(null 字段)")
+    void gearInheritsFromTemplate() {
+        EMWMWeaponConfig template = new EMWMWeaponConfig();
+        template.setGearHelmet("greyzone_helmet_light");
+        template.setGearChestplate("greyzone_vest_kevlar");
+        template.setGearLeggings("greyzone_pads_light");
+        template.setGearBoots("greyzone_boots_tactical");
+        template.setGearDropGear(false);
+        template.setGearMaxHealthBoost(20);
+
+        EMWMWeaponConfig individual = new EMWMWeaponConfig();
+        individual.mergeWithTemplate(template);
+
+        assertEquals("greyzone_helmet_light", individual.getGearHelmet(), "继承头盔");
+        assertEquals("greyzone_vest_kevlar", individual.getGearChestplate(), "继承胸甲");
+        assertEquals("greyzone_pads_light", individual.getGearLeggings(), "继承护腿");
+        assertEquals("greyzone_boots_tactical", individual.getGearBoots(), "继承靴子");
+        assertFalse(individual.getGearDropGearOrDefault(), "继承 dropGear=false");
+        assertEquals(20, individual.getGearMaxHealthBoostOrDefault(), "继承 maxHealthBoost=20");
+    }
+
+    @Test
+    @DisplayName("合并时个体显式 gear 值覆盖模板")
+    void gearIndividualOverridesTemplate() {
+        EMWMWeaponConfig template = new EMWMWeaponConfig();
+        template.setGearChestplate("greyzone_vest_kevlar");
+        template.setGearDropGear(false);
+
+        EMWMWeaponConfig individual = new EMWMWeaponConfig();
+        individual.setGearChestplate("greyzone_vest_plate");
+        individual.setGearDropGear(true);
+        individual.mergeWithTemplate(template);
+
+        assertEquals("greyzone_vest_plate", individual.getGearChestplate(), "个体覆盖模板胸甲");
+        assertTrue(individual.getGearDropGearOrDefault(), "个体覆盖 dropGear=true");
+    }
 }

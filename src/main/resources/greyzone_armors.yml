@@ -1,0 +1,50 @@
+# GreyZone 护甲物品定义（需求7 护甲混用 ArmorMechanics）
+#
+# 用途（实施计划 需求7 / 7.2-7.3）：
+#   桥接层在 EMWM 控制的怪物生成时，按本文件把「护甲」套到怪物身上（entity.getEquipment().setXxx），
+#   并在死亡（dropGear=true）时把对应护甲作为掉落物注入。护甲即 GreyZone 经济产物。
+#
+# 重要（服务器侧必读）：
+#   - armors.<key>.material / display-name / lore 必须与 GreyZone 经济插件认可的「货币护甲物品」一致，
+#     否则玩家捡到也无法使用 / 作为护甲经济结算。上线前请替换为真实货币护甲物品定义。
+#   - 当前材质（IRON_*）与显示名为占位，待测试服替换为真实 GreyZone 护甲（沿用「禁止空占位发布」原则：
+#     此处为非空临时值 + 明确注释，绝非 [PLACEHOLDER] 空壳）。
+#   - 非 GreyZone 服务器：删除本文件即关闭护甲套用与掉落（GearManager 加载失败 = 不套甲/不掉落）。
+#
+# 依赖说明（验证门 7.4）：
+#   本文件只管「物品定义 + 套甲 + 掉落」。护甲是否对非玩家实体实际减伤（AM Bullet_Resistance/MAX_HEALTH）
+#   取决于 ArmorMechanics 版本；若 AM 不对非玩家加血，可在模板 gear 块设 maxHealthBoost > 0 由桥接层补上限。
+
+# ============ 护甲物品定义（对应 gear.helmet/chestplate/leggings/boots 的 key）============
+armors:
+  greyzone_helmet_light:
+    material: IRON_HELMET
+    display-name: "§f轻型头盔"
+    lore:
+      - "§7GreyZone 护甲 · 头部"
+  greyzone_vest_kevlar:
+    material: IRON_CHESTPLATE
+    display-name: "§f凯夫拉背心"
+    lore:
+      - "§7GreyZone 护甲 · 躯干"
+  greyzone_pads_light:
+    material: IRON_LEGGINGS
+    display-name: "§f战术护腿"
+    lore:
+      - "§7GreyZone 护甲 · 腿部"
+  greyzone_boots_tactical:
+    material: IRON_BOOTS
+    display-name: "§f战术战靴"
+    lore:
+      - "§7GreyZone 护甲 · 足部"
+  # 重装变体（可选，供不同 tier/模板引用）
+  greyzone_helmet_heavy:
+    material: DIAMOND_HELMET
+    display-name: "§b重型头盔"
+    lore:
+      - "§7GreyZone 护甲 · 头部（重装）"
+  greyzone_vest_plate:
+    material: DIAMOND_CHESTPLATE
+    display-name: "§b插板背心"
+    lore:
+      - "§7GreyZone 护甲 · 躯干（重装）"

@@ -4,6 +4,7 @@ import com.emwbridge.EMWMBridge;
 import com.emwbridge.config.EMWMConfigCache;
 import com.emwbridge.config.EMWMWeaponConfig;
 import com.emwbridge.events.EMWMKillEvent;
+import com.emwbridge.loot.GearManager;
 import com.emwbridge.loot.LootManager;
 import com.emwbridge.managers.MobWeaponManager;
 import com.emwbridge.managers.TarkovAIManager;
@@ -236,6 +237,28 @@ public class EliteMobSpawnListener implements Listener {
             }
         }
 
+        // 需求7：护甲混用（ArmorMechanics）。套甲 + 记录掉落/加血参数（7.4 验证门：AM 对非玩家减伤待测试服确认）
+        // 守卫：gearManager 可能为 null（mock/部分初始化），则跳过，不阻断绑定流程；玩家交战路径不受影响
+        GearManager gearManager = plugin.getGearManager();
+        if (gearManager != null && config != null) {
+            // 套甲（仅 EMWM 控制怪）
+            gearManager.equipGear(entity, config);
+            // 记录各槽护甲 key（onEntityDeath 按 key 掉落，保证与套甲一致）
+            for (String slot : GearManager.GEAR_SLOTS) {
+                String key = gearManager.resolveSlotKey(config, slot);
+                if (key != null) {
+                    entity.setMetadata("emwm_gear_" + slot, new FixedMetadataValue(plugin, key));
+                }
+            }
+            // 7.4 验证门垫片：桥接层补 NPC 最大生命（仅当 AM 不对非玩家加血时启用，maxHealthBoost>0）
+            int boost = config.getGearMaxHealthBoostOrDefault();
+            if (boost > 0) {
+                gearManager.applyMaxHealthBoost(entity, boost);
+            }
+            // 死亡掉落开关（默认 true，防玩家白嫖护甲经济）
+            entity.setMetadata("emwm_gear_drop", new FixedMetadataValue(plugin, config.getGearDropGearOrDefault()));
+        }
+
         // 存储配置参数供AI使用
         entity.setMetadata("emwm_fire_rate_ticks", new FixedMetadataValue(plugin, config.getFireRateTicks()));
         entity.setMetadata("emwm_max_range", new FixedMetadataValue(plugin, config.getMaxRange()));
@@ -340,6 +363,24 @@ public class EliteMobSpawnListener implements Listener {
                 }
             }
 
+            // 需求7：护甲掉落（dropGear=true 时，按装备槽注入对应护甲 ItemStack，U4）
+            boolean dropGear = getMetaBoolean(entity, "emwm_gear_drop", false);
+            if (dropGear) {
+                GearManager gear = plugin.getGearManager();
+                if (gear != null) {
+                    for (String slot : GearManager.GEAR_SLOTS) {
+                        String key = getMetaString(entity, "emwm_gear_" + slot);
+                        if (key != null) {
+                            ItemStack armor = gear.buildArmorItem(key);
+                            if (armor != null) {
+                                event.getDrops().add(armor);
+                                plugin.debug("[EMWM] 死亡掉落护甲: " + slot + " = " + key);
+                            }
+                        }
+                    }
+                }
+            }
+
             weaponManager.unbindWeapon(entity);
             plugin.debug("精英怪死亡，解绑武器: " + entity.getType());
             // 注销AI引擎
@@ -406,6 +447,14 @@ public class EliteMobSpawnListener implements Listener {
         return entity.getMetadata(key).stream()
                 .findFirst()
                 .map(v -> v.asInt())
+                .orElse(fallback);
+    }
+
+    private boolean getMetaBoolean(LivingEntity entity, String key, boolean fallback) {
+        if (!entity.hasMetadata(key)) return fallback;
+        return entity.getMetadata(key).stream()
+                .findFirst()
+                .map(v -> v.asBoolean())
                 .orElse(fallback);
     }
 

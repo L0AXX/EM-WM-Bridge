@@ -75,6 +75,11 @@
 | 7.3 `dropGear:true` 时死亡移交护甲掉落 | `onEntityDeath` | 掉落对应护甲 |
 | 7.4 **测试服验证**：AM 对非玩家实体实际减伤+加血 | 实验 | 验证通过则成本≈0 |
 
+> **状态（2026-07-10）：骨架已实现，7.4 验证门未解。** 用户选择「还没测/不确定」→ 按薄胶水路径落地代码结构（7.1–7.3 全做），护甲实际减伤依赖 AM 对非玩家实体的支持（验证门 7.4）待测试服确认。
+> - 若 AM 对非玩家生效 → 当前骨架即为全部所需（成本≈0）。
+> - 若 AM 仅限玩家 → 通过模板 `gear.maxHealthBoost > 0` 由桥接层补 NPC 最大生命（薄垫片，已预留 `applyMaxHealthBoost`）；严格不另建 NPC 护甲模型。
+> - `greyzone_armors.yml` 材质（IRON_*/DIAMOND_*）与显示名为占位，待测试服替换为真实 GreyZone 货币护甲（沿用「禁止空占位发布」：非空临时值 + 明确注释）。
+
 ### 需求 8 ｜ Boss 协同召唤【P2】
 | 子任务 | 代码落点 | 验收点 |
 |--------|----------|--------|
@@ -160,8 +165,19 @@
 - 单测：LootManagerTest（9：白名单/硬上限/min钳制/区间随机/resolve 优先级）+ EMWMWeaponConfigTest（2：默认/继承）+ EMWMConfigCacheTest（1：loot 子块解析）
 - 全套 438 测试 0 失败，覆盖率门禁✅
 
-### ⏳ 需求 7 / 8 — 按 M5 推进
-- 需求7（护甲混用 ArmorMechanics，M5 P1）、需求8（Boss 协同召唤，M5 P2）
+### ✅ 需求 7（护甲混用 ArmorMechanics，M5 P1）— 骨架已完成 2026-07-10
+- `EMWMWeaponConfig` 新增 gear 块字段（gearHelmet/Chestplate/Leggings/Boots + gearDropGear + gearMaxHealthBoost）+ 模板继承 + defaults（dropGear=true / maxHealthBoost=0 信赖 AM）
+- `EMWMConfigCache` 解析 `gear` 子块（模板路径 parseTemplateSection）+ 合并
+- 新增 `greyzone_armors.yml`（护甲物品定义，材质占位 IRON_*/DIAMOND_*，注释待测试服替换）
+- 新增 `GearManager`（com.emwbridge.loot）：reload 加载护甲定义；resolveSlotKey 槽位映射；buildArmorItem 白名单；equipGear 套甲；applyMaxHealthBoost（7.4 垫片）；shouldDropGear
+- `EMWMBridge` 装配 GearManager（onEnable + reloadAll + getter）
+- `EliteMobSpawnListener`：bind 套甲 + 写 `emwm_gear_*` 元数据（null 守卫，玩家交战路径不受影响）；onEntityDeath 按槽注入护甲掉落；新增 `getMetaBoolean`
+- 单测：GearManagerTest（10）+ EMWMWeaponConfigTest（3：默认/继承/覆盖）+ EMWMConfigCacheTest（2：gear 块解析/dropGear 缺省）
+- 全套测试 0 失败，覆盖率门禁✅
+- **待办**：7.4 测试服验证 AM 对非玩家实体减伤/加血 → 决定成本是否≈0 或启用 maxHealthBoost 垫片；greyzone_armors.yml 替换为真实护甲
+
+### ⏳ 需求 8 — 按 M5 推进
+- 需求8（Boss 协同召唤，M5 P2）：监听 Boss 阶段事件 → 调 SquadManager 生成 API，继承需求1 阵营
 
 ---
 

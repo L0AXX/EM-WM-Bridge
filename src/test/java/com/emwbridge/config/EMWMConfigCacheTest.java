@@ -166,6 +166,38 @@ class EMWMConfigCacheTest {
         }
 
         @Test
+        @DisplayName("需求7：gear 子块解析 4 槽 + dropGear + maxHealthBoost（模板路径 parseTemplateSection）")
+        void gearBlockParsed() throws Exception {
+            YamlConfiguration section = new YamlConfiguration();
+            section.set("gear.helmet", "greyzone_helmet_light");
+            section.set("gear.chestplate", "greyzone_vest_kevlar");
+            section.set("gear.leggings", "greyzone_pads_light");
+            section.set("gear.boots", "greyzone_boots_tactical");
+            section.set("gear.dropGear", false);
+            section.set("gear.maxHealthBoost", 20);
+
+            EMWMWeaponConfig result = parse(section);
+            assertEquals("greyzone_helmet_light", result.getGearHelmet());
+            assertEquals("greyzone_vest_kevlar", result.getGearChestplate());
+            assertEquals("greyzone_pads_light", result.getGearLeggings());
+            assertEquals("greyzone_boots_tactical", result.getGearBoots());
+            assertEquals(false, result.getGearDropGear());
+            assertEquals(20, result.getGearMaxHealthBoost());
+        }
+
+        @Test
+        @DisplayName("需求7：gear.dropGear 缺省不写时保留 null（默认 true 由 orDefault 提供）")
+        void gearBlockDropGearAbsentKeepsNull() throws Exception {
+            YamlConfiguration section = new YamlConfiguration();
+            section.set("gear.chestplate", "greyzone_vest_kevlar");
+
+            EMWMWeaponConfig result = parse(section);
+            assertEquals("greyzone_vest_kevlar", result.getGearChestplate());
+            assertNull(result.getGearDropGear(), "未写 dropGear 应为 null，由 orDefault 回退 true");
+            assertTrue(result.getGearDropGearOrDefault(), "orDefault 回退 true");
+        }
+
+        @Test
         @DisplayName("需求2/3：顶层 squad 与 behavior 解析")
         void squadAndBehaviorTopLevel() throws Exception {
             ConfigurationSection section = mockSection();

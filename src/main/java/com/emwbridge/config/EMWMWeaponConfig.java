@@ -128,6 +128,16 @@ public class EMWMWeaponConfig {
     private Integer lootAmmoMin;            // 掉落数量下限，null=8（U5 规格 §3 默认值，需测试服校准）
     private Integer lootAmmoMax;            // 掉落数量上限，null=24（U5 规格 §3 默认值，需测试服校准）
 
+    // ==================== 扩展：护甲混用（GreyZone 需求7）====================
+    // 7.1：gear 块（4 槽 + dropGear）。实际减伤依赖 ArmorMechanics 对非玩家实体的支持（7.4 验证门，待测试服确认）。
+    // 本桥接层只负责「套甲 + 死亡掉落」薄胶水；AM 的 Bullet_Resistance/MAX_HEALTH 是否对非玩家生效决定是否需要 7.4 垫片。
+    private String gearHelmet;       // 头盔护甲 key（对应 greyzone_armors.yml armors.<key>）；null=不穿
+    private String gearChestplate;   // 胸甲护甲 key；null=不穿
+    private String gearLeggings;     // 护腿护甲 key；null=不穿
+    private String gearBoots;        // 靴子护甲 key；null=不穿
+    private Boolean gearDropGear;    // 死亡是否掉落护甲；null=true（默认掉落，防玩家白嫖护甲经济）
+    private Integer gearMaxHealthBoost; // 桥接层对 NPC 手动补的额外最大生命（仅当 AM 不对非玩家加血时启用，7.4 垫片）；null=0（信赖 AM）
+
     // ==================== 武器池随机选择 ====================
 
     /**
@@ -413,6 +423,14 @@ public class EMWMWeaponConfig {
         if (lootAmmoType == null) lootAmmoType = template.lootAmmoType;
         if (lootAmmoMin == null) lootAmmoMin = template.lootAmmoMin;
         if (lootAmmoMax == null) lootAmmoMax = template.lootAmmoMax;
+
+        // 扩展护甲混用（GreyZone 需求7）
+        if (gearHelmet == null) gearHelmet = template.gearHelmet;
+        if (gearChestplate == null) gearChestplate = template.gearChestplate;
+        if (gearLeggings == null) gearLeggings = template.gearLeggings;
+        if (gearBoots == null) gearBoots = template.gearBoots;
+        if (gearDropGear == null) gearDropGear = template.gearDropGear;
+        if (gearMaxHealthBoost == null) gearMaxHealthBoost = template.gearMaxHealthBoost;
     }
 
     // ==================== Getter/Setter ====================
@@ -662,6 +680,24 @@ public class EMWMWeaponConfig {
     public int getLootAmmoMinOrDefault() { return lootAmmoMin != null ? lootAmmoMin : 8; }
     /** 掉落数量上限默认值（U5 规格 §3 = 24，需测试服校准回填） */
     public int getLootAmmoMaxOrDefault() { return lootAmmoMax != null ? lootAmmoMax : 24; }
+
+    // ==================== 需求7：护甲混用（ArmorMechanics）====================
+    public String getGearHelmet() { return gearHelmet; }
+    public void setGearHelmet(String gearHelmet) { this.gearHelmet = gearHelmet; explicitlySetFields.add("gearHelmet"); }
+    public String getGearChestplate() { return gearChestplate; }
+    public void setGearChestplate(String gearChestplate) { this.gearChestplate = gearChestplate; explicitlySetFields.add("gearChestplate"); }
+    public String getGearLeggings() { return gearLeggings; }
+    public void setGearLeggings(String gearLeggings) { this.gearLeggings = gearLeggings; explicitlySetFields.add("gearLeggings"); }
+    public String getGearBoots() { return gearBoots; }
+    public void setGearBoots(String gearBoots) { this.gearBoots = gearBoots; explicitlySetFields.add("gearBoots"); }
+    public Boolean getGearDropGear() { return gearDropGear; }
+    public void setGearDropGear(Boolean gearDropGear) { this.gearDropGear = gearDropGear; explicitlySetFields.add("gearDropGear"); }
+    public Integer getGearMaxHealthBoost() { return gearMaxHealthBoost; }
+    public void setGearMaxHealthBoost(Integer gearMaxHealthBoost) { this.gearMaxHealthBoost = gearMaxHealthBoost; explicitlySetFields.add("gearMaxHealthBoost"); }
+    /** 死亡掉落护甲默认值：true（默认掉落，防玩家白嫖护甲经济） */
+    public boolean getGearDropGearOrDefault() { return gearDropGear != null ? gearDropGear : true; }
+    /** 桥接层补的最大生命：0 = 信赖 AM（待测试服验证门 7.4 确认） */
+    public int getGearMaxHealthBoostOrDefault() { return gearMaxHealthBoost != null ? gearMaxHealthBoost : 0; }
 
     public Double getGuardRadius() { return guardRadius; }
     public double getGuardRadiusOrDefault() { return guardRadius != null ? guardRadius : 12.0; }
