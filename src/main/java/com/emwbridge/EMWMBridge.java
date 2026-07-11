@@ -8,6 +8,7 @@ import com.emwbridge.listeners.EMWMReloadListener;
 import com.emwbridge.listeners.PlayerShootListener;
 import com.emwbridge.loot.GearManager;
 import com.emwbridge.loot.LootManager;
+import com.emwbridge.managers.BossCoordinationManager;
 import com.emwbridge.managers.ConfigManager;
 import com.emwbridge.managers.ExtremeEventManager;
 import com.emwbridge.managers.FeatureManager;
@@ -43,6 +44,7 @@ public class EMWMBridge extends JavaPlugin {
     private EMWMReloadListener reloadListener;
     private LootManager lootManager;
     private GearManager gearManager;
+    private BossCoordinationManager bossCoordinationManager;
     private boolean isFolia;
 
     @Override
@@ -81,6 +83,7 @@ public class EMWMBridge extends JavaPlugin {
         tarkovAIManager = new TarkovAIManager(this);
         lootManager = new LootManager(this);
         gearManager = new GearManager(this);
+        bossCoordinationManager = new BossCoordinationManager(this);
 
         // 加载配置
         mobWeaponManager.reload();
@@ -88,6 +91,7 @@ public class EMWMBridge extends JavaPlugin {
         tarkovAIManager.start();
         lootManager.reload();
         gearManager.reload();
+        bossCoordinationManager.reload();
 
         registerListeners();
 
@@ -132,6 +136,10 @@ public class EMWMBridge extends JavaPlugin {
         PluginManager pm = Bukkit.getPluginManager();
         pm.registerEvents(new EliteMobSpawnListener(this), this);
         pm.registerEvents(new EliteMobCombatListener(this), this);
+        // 需求8：Boss 协同召唤（监听 ElitePhaseSwitchEvent）
+        if (bossCoordinationManager != null) {
+            pm.registerEvents(bossCoordinationManager, this);
+        }
 
         // 注册热重监听器（命令监听）
         pm.registerEvents(new EMCommandListener(this), this);
@@ -402,6 +410,9 @@ public class EMWMBridge extends JavaPlugin {
         if (gearManager != null) {
             gearManager.reload();
         }
+        if (bossCoordinationManager != null) {
+            bossCoordinationManager.reload();
+        }
     }
 
     public static EMWMBridge getInstance() {
@@ -426,6 +437,10 @@ public class EMWMBridge extends JavaPlugin {
 
     public GearManager getGearManager() {
         return gearManager;
+    }
+
+    public BossCoordinationManager getBossCoordinationManager() {
+        return bossCoordinationManager;
     }
 
     public DebugManager getDebugManager() {

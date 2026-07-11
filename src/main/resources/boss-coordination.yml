@@ -1,0 +1,35 @@
+# GreyZone Boss 协同召唤配置（需求8 / 8.1-8.2）
+#
+# 触发机制：监听 EliteMobs 的 ElitePhaseSwitchEvent（Boss 阶段切换）。
+# 行为：当 Boss 血量降到 triggerHealthPercent 阈值之一时，在 Boss 周围环形召唤 count 名 minion，
+#       并经需求2 的编制 API 将它们编入 squad 命名编制。
+#
+# 阵营继承（8.2）：minion 必须同时是 EMWM 怪物配置名 —— 它生成时自动经 EliteMobSpawnListener
+#       按名匹配绑定，从而获得 需求1 阵营判定 / AI / 护甲（薄胶水，无额外代码）。
+#       若要让 minion 与 Boss 同阵营，只需在 minion 的 EMWM 配置中设置相同的 faction。
+#
+# 字段：
+#   boss:                  EliteMobs Boss 配置名（CustomBossEntity.getName()，小写匹配）
+#   minion:                EliteMobs 小怪配置名（须同时也是 EMWM 怪物配置名，才能继承阵营/AI/护甲）
+#   squad:                 命名编制名（须存在于 config.yml squad.squads，否则按全局上限动态创建）
+#   count:                 每次触发的协同数量（默认 4）
+#   triggerHealthPercent:  触发阈值（Boss 血量比例，<= 即触发）；留空 = 任意阶段切换都触发
+#   cooldownSeconds:       同一 Boss 两次召唤的最小间隔（默认 30，防刷）
+
+coordinations:
+  - boss: "greyzone_warlord"
+    minion: "greyzone_raider"
+    squad: "warlord_wardens"
+    count: 4
+    triggerHealthPercent:
+      - 0.66
+      - 0.33
+    cooldownSeconds: 30
+
+  # 第二个示例：重装 Boss，阶段切换即召唤（无阈值，靠 cooldown 防刷）
+  - boss: "greyzone_colossus"
+    minion: "greyzone_brute"
+    squad: "colossus_guard"
+    count: 3
+    triggerHealthPercent: []
+    cooldownSeconds: 45

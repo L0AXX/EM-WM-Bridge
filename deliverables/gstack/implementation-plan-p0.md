@@ -176,8 +176,17 @@
 - 全套测试 0 失败，覆盖率门禁✅
 - **待办**：7.4 测试服验证 AM 对非玩家实体减伤/加血 → 决定成本是否≈0 或启用 maxHealthBoost 垫片；greyzone_armors.yml 替换为真实护甲
 
-### ⏳ 需求 8 — 按 M5 推进
-- 需求8（Boss 协同召唤，M5 P2）：监听 Boss 阶段事件 → 调 SquadManager 生成 API，继承需求1 阵营
+### ✅ 需求 8（Boss 协同召唤，M5 P2）— 已完成 2026-07-11
+- 新增 `BossCoordinationManager`（com.emwbridge.managers，implements Listener）：`@EventHandler` 监听 `ElitePhaseSwitchEvent`（EliteMobs api 包）→ 规则解析 → 阈值/冷却判定 → 环形召唤波次 → 延迟 1 tick 编入命名编制（8.1）
+- 新增 `boss-coordination.yml`（coordinations 列表：boss→minion/squad/count/triggerHealthPercent/cooldown，2 条示例规则）
+- `EMWMBridge` 装配 BossCoordinationManager（onEnable + reload + registerEvents + reloadAll + getter）
+- 8.2 阵营继承：minion `spawn()` 触发既有 `EliteMobSpawnListener` 名称匹配自动打 faction 标签，**零新增代码**（薄胶水，代码注释已标注）
+- 编队经 `plugin.getTarkovAIManager().getEngine().getSquadManager().tryJoin(entity,null,null,squadName)`（null tier/personality 安全）
+- 单测：`BossCoordinationManagerTest`（6：规则大小写不敏感/阈值+冷却组合/无阈值任意阶段/环形半径）
+- **微型服务端 Harness**（应用户「像 weaponfx 那样 MockBukkit 微服务端测试」要求）：`BossCoordinationHarness`（Mockito 自建微服务端——mock Server/PluginManager/Scheduler + 优先级事件总线派发真 @EventHandler + MockedStatic 屏蔽 CustomBossEntity 静态工厂）+ `BossCoordinationHarnessTest`（5 场景端到端：阈值召唤/超阈值跳过/冷却拦截/无阈值任意阶段/未知 Boss）
+  - 沙箱 Maven 镜像未收录 MockBukkit（org/mockbukkit/* 404），故用依赖无关 Harness（等价微服务端）；如需真 MockBukkit 可在能访问 Maven Central 的机器启用 build.gradle 注释的 testMockBukkit sourceSet
+- 全套 464 测试 0 失败，覆盖率门禁✅
+- **待办**：测试服实机验证 Boss 阶段切换实际拉起协同 + 阵营继承生效；boss-coordination.yml 的 boss/minion 名替换为真实 GreyZone Boss 配置名
 
 ---
 
