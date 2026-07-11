@@ -8,6 +8,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -109,6 +110,59 @@ public class FactionManager {
     public String getFactionDisplay(String id) {
         FactionProfile p = factionsById.get(id);
         return p != null ? p.getDisplay() : id;
+    }
+
+    // ===================== 动态关系写回（据点易主 / 声望）=====================
+    // 设计约束（open-questions.md 第5节）：动态变更不得破坏「未配置默认 HOSTILE」回退与枚举矩阵兜底。
+
+    /**
+     * 运行时变更 self 对 other 的阵营关系（仅内存，需配合 {@link #save} 持久化）。
+     * 未配置字符串阵营系统时（factionsById 为空）为 no-op，保证回退到内置枚举行为不变。
+     *
+     * @return true 表示找到 self 阵营并写入；false 表示无操作（selfId/otherId/rel 为 null 或 self 不存在）。
+     */
+    public boolean setRelation(String selfId, String otherId, HostilityMatrix.Relation rel) {
+        if (selfId == null || otherId == null || rel == null) return false;
+        FactionProfile self = factionsById.get(selfId);
+        if (self == null) return false;
+        self.setRelationTo(otherId, rel);
+        return true;
+    }
+
+    /**
+     * 持久化当前（可能经 {@link #setRelation} 修改过的）阵营关系到 emwm_factions.yml。
+     * 保留文件中其他顶层键，仅重建 factions 段。
+     * 未配置时 no-op 返回 false（避免清空/覆盖默认资源）。
+     */
+    public boolean save(JavaPlugin plugin) {
+        if (plugin == null || plugin.getDataFolder() == null) return false;
+        return saveToFile(new File(plugin.getDataFolder(), "emwm_factions.yml"));
+    }
+
+    /**
+     * 将阵营关系写入指定 yml 文件（供测试与自定义路径使用）。
+     * 文件已存在则载入并仅替换 factions 段，保留其他顶层键；不存在则新建。
+     *
+     * @return true 写入成功；false 未配置或 IO 异常。
+     */
+    public boolean saveToFile(File file) {
+        if (file == null || !isConfigured()) return false;
+        try {
+            YamlConfiguration yaml = file.exists() ? YamlConfiguration.loadConfiguration(file) : new YamlConfiguration();
+            ConfigurationSection factionsSec = yaml.createSection("factions");
+            for (FactionProfile p : factionsById.values()) {
+                ConfigurationSection fs = factionsSec.createSection(p.getId());
+                fs.set("display", p.getDisplay());
+                ConfigurationSection rel = fs.createSection("relations");
+                rel.set("hostile", new ArrayList<>(p.getHostile()));
+                rel.set("ally", new ArrayList<>(p.getAlly()));
+                rel.set("neutral", new ArrayList<>(p.getNeutral()));
+            }
+            yaml.save(file);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     // ===================== 旧版枚举阵营（回退）=====================

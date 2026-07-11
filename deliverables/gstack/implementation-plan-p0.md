@@ -188,6 +188,13 @@
 - 全套 464 测试 0 失败，覆盖率门禁✅
 - **待办**：测试服实机验证 Boss 阶段切换实际拉起协同 + 阵营继承生效；boss-coordination.yml 的 boss/minion 名替换为真实 GreyZone Boss 配置名
 
+### ✅ 收尾项 — 动态关系矩阵写回接口（open-questions 第5节）— 已完成 2026-07-11
+- `FactionManager` 增加 `setRelation(selfId, otherId, Relation)`（仅内存、未配置时 no-op 返回 false）+ `save(JavaPlugin)` / `saveToFile(File)` 持久化回 `emwm_factions.yml`（保留其他顶层键、仅重建 factions 段）
+- `FactionProfile` 配套 `clearRelationTo` / `setRelationTo` / 关系 getter；`setRelationTo` 按 HOSTILE→hostile、FRIENDLY→ally、NEUTRAL→neutral 归位
+- 满足设计约束：动态变更不破坏「未配置默认 HOSTILE」回退与内置枚举矩阵兜底（未配置时 setRelation 直接 no-op）
+- 单测：FactionProfileTest（6：三类关系设置/切换清除旧归属/同阵营恒 FRIENDLY/默认 HOSTILE）+ FactionManagerGreyZoneTest 追加 5 项（setRelation 生效 / 改 HOSTILE / 未知阵营返回 false / 未配置 no-op / saveToFile 往返 reload 校验）
+- **用途**：据点易主、声望导致 PVE→PVP 阵营关系变动时，运行时 `setRelation(...)` + `save()` 即可写回，无需改静态 yml 重启
+
 ---
 
 > ⚠️ **本地测试坑（团队必读）**：本沙箱 Gradle **守护进程**环境过大，fork 测试 JVM 会 `xargs: environment is too large for exec` → 瞬时退出。跑测试必须加 `--no-daemon`：`./gradlew test --no-daemon`。GitHub Actions CI（Linux runner）不受影响，作为权威测试裁判。

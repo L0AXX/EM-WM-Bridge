@@ -29,8 +29,10 @@
 
 ## 5. 关系矩阵动态性（运行时写回接口）
 - 当前 `emwm_factions.yml` 为**静态** yml；但 PVE→PVP 的据点易主 / 声望会变动阵营关系。
-- 需补：运行时写回接口 —— `HostilityMatrix` / `FactionManager` 增加 `setRelation(selfId, otherId, Relation)` + `save()`（回写 yml 或内存 + 持久化）。
-- 设计约束：动态变更不得破坏既有「未配置默认 HOSTILE」回退与枚举矩阵兜底。
+- ✅ **已实现（2026-07-11）**：`FactionManager` 增加 `setRelation(selfId, otherId, Relation)`（仅内存、未配置时 no-op 返回 false）+ `save(JavaPlugin)` / `saveToFile(File)` 持久化回 `emwm_factions.yml`（保留其他顶层键，仅重建 factions 段）。
+  - `FactionProfile` 配套 `clearRelationTo` / `setRelationTo` / 关系 getter；`setRelationTo` 按 HOSTILE→hostile、FRIENDLY→ally、NEUTRAL→neutral 归位。
+  - 设计约束满足：动态变更不破坏「未配置默认 HOSTILE」回退与枚举矩阵兜底（未配置时 setRelation 直接 no-op）。
+  - 单测：FactionProfileTest（6）+ FactionManagerGreyZoneTest 追加（setRelation 生效 / 改 HOSTILE / 未知阵营 false / 未配置 no-op / saveToFile 往返 reload 校验）。
 
 ## 6. 环境 / 协作流程备注
 - general-purpose 子代理运行环境**无 SendMessage 工具**；结论由主理人（主代理）直接汇编转发，未走正式 team 消息总线；原始产出为会话内结构化文本，未落盘成员独立文件。
@@ -44,4 +46,4 @@
 | 数值占位 | 临时值已标注释，待反算 | 测试服 |
 | 酸液 DoT | 设计待定 + 测试待记录 | 服务器侧方案 |
 | 需求7 护甲门 | 验证待测试服 | AM 版本 |
-| 动态关系矩阵 | 需补写回接口 | 无 |
+| 动态关系矩阵 | ✅ 已补 setRelation+save 接口（2026-07-11） | 无 |
